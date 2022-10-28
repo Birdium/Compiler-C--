@@ -1,9 +1,9 @@
 #include "table.h"
 
 HashValue table[HASH_SIZE];
-HashValue func_table[HASH_SIZE];
 Region cur;
 int depth;
+HashValue func_table[HASH_SIZE];
 
 int table_insert(char *key, Type value) {
     Type check = table_lookup(key);
@@ -50,7 +50,17 @@ Type table_lookup(char *key) {
     unsigned int hash = hash_pjw(key);
     HashValue val = table[hash];
     while (val) {
-        if (streq(key, val->name)) break;
+        if (val->kind != FUNCTION && streq(key, val->name)) break;
+        val = val->next;
+    }
+    return val;
+}
+
+Type function_lookup(char *key) {
+    unsigned int hash = hash_pjw(key);
+    HashValue val = table[hash];
+    while (val) {
+        if (val->kind == FUNCTION && streq(key, val->name)) break;
         val = val->next;
     }
     return val;
