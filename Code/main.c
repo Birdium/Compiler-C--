@@ -16,5 +16,6 @@ int main(int argc, char** argv) {
     yyparse();
     // assert(root);
     if (!lex_error && !syn_error) print_ast(root, 0);
+    Program(root);
     return 0;
 }

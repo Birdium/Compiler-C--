@@ -1,15 +1,20 @@
 #include "table.h"
+#include <assert.h>
+#include <string.h>
 
 HashValue table[HASH_SIZE];
 Region cur;
 int depth;
-HashValue func_table[HASH_SIZE];
 
 int table_insert(char *key, Type value) {
-    Type check = table_lookup(key);
-    if (check && check->depth == depth) return 1;
     unsigned int hash = hash_pjw(key);
-    HashValue new_field = (HashValue)malloc(sizeof(HashValue_));
+    HashValue val = table[hash];
+    while (val) {
+        if (val->type->kind == FUNCTION && streq(key, val->name)) break;
+        val = val->next;
+    }
+    if (val && val->depth == depth) return 1;
+    HashValue new_field = (HashValue)malloc(sizeof(struct HashValue_));
     new_field->next = table[hash];
     new_field->depth = depth;
     table[hash] = new_field;
@@ -27,7 +32,7 @@ int table_remove(char *key) {
 }
 
 void table_enter() {
-    Region new_region = (Region)malloc(sizeof(Region_));
+    Region new_region = (Region)malloc(sizeof(struct Region_));
     new_region->pred = cur;
     new_region->succ = NULL;
     cur = new_region;
@@ -50,7 +55,7 @@ Type table_lookup(char *key) {
     unsigned int hash = hash_pjw(key);
     HashValue val = table[hash];
     while (val) {
-        if (val->kind != FUNCTION && streq(key, val->name)) break;
+        if (val->type->kind != FUNCTION && streq(key, val->name)) break;
         val = val->next;
     }
     return val;
@@ -60,10 +65,10 @@ Type function_lookup(char *key) {
     unsigned int hash = hash_pjw(key);
     HashValue val = table[hash];
     while (val) {
-        if (val->kind == FUNCTION && streq(key, val->name)) break;
+        if (val->type->kind == FUNCTION && streq(key, val->name)) break;
         val = val->next;
     }
-    return val;
+    return val->type;
 }
 
 

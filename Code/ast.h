@@ -94,7 +94,7 @@ static const char *NODE_TYPE_STRING[] = {
     FOREACH_NODE_TYPE(GENERATE_STRING)
 };
 
-typedef struct{
+typedef struct {
     #define MAX_IDENT_LENGTH 32
     struct Node *son, *succ;
     NodeType type;
