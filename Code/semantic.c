@@ -2,6 +2,8 @@
 #include "ast.h"
 #include "semantic.h"
 
+static bool in_struct;
+
 static inline bool is_intty(Type type) {
     return type->kind == BASIC && type->u.basic == INT_TY_NODE;
 }
@@ -20,13 +22,10 @@ void serror(int type, int lineno, const char *str){
 }
 
 bool array_match(Type ty1, Type ty2) {
-    if (ty1->u.array.size != ty2->u.array.size) return false;
     return type_match(ty1->u.array.elem, ty2->u.array.elem);
 }
 
-bool struct_match(Type ty1, Type ty2) {
-    FieldList iter1 = ty1->u.structure;
-    FieldList iter2 = ty2->u.structure;
+bool field_match(FieldList iter1, FieldList iter2) {
     while (iter1 || iter2) {
         if (!iter1 || !iter2) return false;
         bool check = type_match(iter1->type, iter2->type);
@@ -41,9 +40,17 @@ bool type_match(Type ty1, Type ty2) {
     if (ty1 == NULL || ty2 == NULL) return false;
     if (ty1->kind != ty2->kind) return false;
     if (ty1->kind == BASIC) return ty1->u.basic == ty2->u.basic;
-    if (ty1->kind == STRUCTURE) return struct_match(ty1, ty2);
-    if (ty1->kind == FUNCTION) return struct_match(ty1, ty2);
+    if (ty1->kind == STRUCTURE) return field_match(ty1->u.structure, ty2->u.structure);
+    if (ty1->kind == FUNCTION) return field_match(ty1->u.structure, ty2->u.structure);
     return false;
+}
+
+Type return_type(Type functy) {
+    return functy->u.structure->type;
+}
+
+FieldList param_type(Type functy) {
+    return functy->u.structure->tail;
 }
 
 void Program(Node *cur) {
@@ -81,7 +88,7 @@ void ExtDef(Node *cur) {
         else if (node->type == FunDec_NODE) {
             type = FunDec(node, type);
             node = node->succ;
-            CompSt(node, type);
+            CompSt(node);
         }
     }
 }
@@ -118,14 +125,48 @@ Type Specifier(Node *cur) {
 
 Type StructSpecifier(Node *cur) {
     if (cur == NULL) return NULL;
+    table_enter();
     Node *tag = cur->son;
     tag = tag->succ;
     if (tag->type == OptTag_NODE) {
+        char *name = OptTag(tag);
+        Node *defList = tag->succ;
+        defList = defList->succ;
+        FieldList = DefList(defList);
+        if (name) {
 
+        }
     }
     else if (tag->type == Tag_NODE) {
-        Type 
+        char *name = Tag(tag);
+        Type struct_type = table_lookup(name);
+        if (struct_type) {
+            return struct_type;
+        }
+        else {
+            serror(17, cur->lineno, "Undefined struct");
+        }
     }
+    return NULL;
+}
+
+char *OptTag(Node *cur) {
+    if (cur == NULL) return NULL;
+    if (cur->type == Null_NODE) return NULL;
+    else if (cur->type == OptTag_NODE) {
+        Node *id = cur->son;
+        if (id->type == ID_NODE) return id->val.id;
+    }
+    return NULL;
+}
+
+char *Tag(Node *cur) {
+    if (cur == NULL) return NULL;
+    if (cur->type == OptTag_NODE) {
+        Node *id = cur->son;
+        if (id->type == ID_NODE) return id->val.id;
+    }
+    return NULL;
 }
 
 FieldList VarDec(Node *cur, Type type) {
@@ -138,7 +179,7 @@ FieldList VarDec(Node *cur, Type type) {
         varDec->type = type;
         varDec->tail = NULL;
         if (tabel_insert(varDec->name, type)) {
-            error(7, son->lineno, "Redefinition of Variable");
+            serror(7, son->lineno, "Redefinition of Variable");
         }
         return varDec;
     }
@@ -186,26 +227,32 @@ void Stmt(Node *cur) {
         case CompSt_NODE: Stmt(son); break;         
         case RETURN_NODE: 
         break;
-        case IF_NODE:
+        case IF_NODE: {
+
+        }
         break;
-        case WHILE_NODE:
+        case WHILE_NODE: {
+            son = son->succ; son = son->succ;
+            Type cond_type = Exp(son);
+            if ()
+        }
         break;
         default: assert(0); break;
         }
     }
 }
 
-void DefList(Node *cur) {
+FieldList DefList(Node *cur) {
     if (cur == NULL) return;
     if (cur->type == DefList_NODE) {
         Node *son = cur->son;
-        Def(son);
+        FieldList result = Def(son);
         son = son->succ;
         DefList(son);
     }
 }
 
-void Def(Node *cur) {
+FieldList Def(Node *cur) {
     if (cur == NULL) return;
     if (cur->type == Def_NODE) {
         Node *specifier = cur->son;
@@ -215,24 +262,31 @@ void Def(Node *cur) {
     }
 }
 
-void DecList(Node *cur, Type type) {
-    if (cur== NULL) return;
+FieldList DecList(Node *cur, Type type) {
+    if (cur == NULL) return;
     if (cur->type == DecList_NODE) {
         Node *dec = cur->son;
-        Dec(dec, type);
+        FieldList new_field = Dec(dec, type);
         Node *decList = dec->succ;
         if (decList) {
             decList = decList->succ;
-            DecList(decList, type);
+            new_field->tail = DecList(decList, type);
         }
+        return new_field;
     }
 }
 
-void Dec(Node *cur, Type type) {
+FieldList Dec(Node *cur, Type type) {
     if (cur == NULL) return;
     if (cur->type == Dec_NODE) {
         Node *varDec = cur->son;
-
+        FieldList new_field = VarDec(varDec, type);
+        Node *exp = varDec->succ; exp = exp->succ;
+        Type exptype = Exp(exp);
+        if (!type_match(exptype, new_field->type)) {
+            serror(5, cur->lineno, "Mismatch type");
+        }
+        return new_field;
     }
 }
 
@@ -247,13 +301,13 @@ Type Exp(Node *cur) {
         lhs = lhs->succ;
         Type result = Exp(lhs);
         if (!is_basicty(result))
-            error(7, lhs->lineno, "Invalid type in arithmetic expression.");
+            serror(7, lhs->lineno, "Invalid type in arithmetic expression.");
     }
     else if (lhs->type == NOT_NODE) {
         lhs = lhs->succ;
         Type result = Exp(lhs);
         if (!is_intty(result)) 
-            error(7, lhs->lineno, "Invalid type in logic expression.");
+            serror(7, lhs->lineno, "Invalid type in logic expression.");
     }
     else if (lhs->type == INT_NODE) {
         return INT_TY;
@@ -277,20 +331,33 @@ Type Exp(Node *cur) {
             && (op->type != AND_NODE || op->type != OR_NODE)) {
                 return op->type == RELOP_NODE ? INT_TY : FLOAT_TY;
             }
-            error(7, lhs->lineno, "Mismatched type in binary expression.");
+            serror(7, lhs->lineno, "Mismatched type in binary expression.");
         }
         break;
         case LB_NODE: {
+            Node *id = op->succ;
+            Type type = Exp(lhs);
+            if (type->kind == ARRAY) {
+                Node *exp = id->succ; exp = exp->succ;
+                Type index_type = Exp(exp);
+                if (is_intty(index_type)) {
+                    return type->u.array.elem;
+                }
+                else {
+                    serror(12, exp->lineno, "");
+                }
+            }
+            else serror(10, lhs->lineno, "");
         }
         break;
         case DOT_NODE: {
             Node *id = op->succ;
             Type type = Exp(lhs);
             if (type->kind == STRUCTURE) {
-                Type field = get_field(type, id->val.id);
+                return get_field(type, id->val.id);
             }
             else {
-                error(13, lhs->lineno, "");
+                serror(13, lhs->lineno, "");
             }
         }
         break;
@@ -302,17 +369,59 @@ Type Exp(Node *cur) {
         Node *args = lhs->succ;
         if (args == NULL) {
             Type result = table_lookup(lhs->val.id);
-            if (result && result->) {
-                return 
+            if (result) {
+                return result; 
             }
             else {
-                error(1, lhs->lineno, "Undefined Variable");
+                serror(1, lhs->lineno, "Undefined Variable");
                 return NULL;
             }
         }
         else {
             args = args->succ;
+            Type func = function_lookup(lhs->val.id);
+            if (func) {
+                FieldList params = Args(args);
+                if (field_match(params, param_type(func))) {
+                    return return_type(func);
+                }
+                else {
+                    serror(9, lhs->lineno, "");
+                    return NULL;
+                }
+            }
+            else {
+                func = table_lookup(lhs->val.id);
+                if (func) {
+                    serror(11, lhs->lineno, "");
+                }
+                else {
+                    serror(2, )
+                }
+                return NULL;
+            }
         }
     }
+}
+
+FieldList Args(Node *cur) {
+    if (cur == NULL) return NULL;
+    if (cur->type == Args_NODE) {
+        Node *exp = cur->son;
+        Type type = Exp(exp);
+        FieldList new_field = (FieldList)malloc(sizeof(FieldList_));
+        new_field->name = NULL;
+        new_field->type = type;
+        Node *args = exp->succ;
+        if (args) {
+            args = args->succ;
+            new_field->tail = Args(args);
+        }
+        else {
+            new_field->tail = NULL;
+        }
+        return new_field;
+    }
+    return NULL;
 }
 
