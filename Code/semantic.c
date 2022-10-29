@@ -4,7 +4,9 @@
 #include "table.h"
 #include "semantic.h"
 
-static bool in_struct;
+static int in_struct;
+static bool is_fun_dec;
+static bool is_lexp;
 static Type retype;
 
 static inline bool is_intty(Type type) {
@@ -43,6 +45,7 @@ bool type_match(Type ty1, Type ty2) {
     if (ty1 == NULL || ty2 == NULL) return false;
     if (ty1->kind != ty2->kind) return false;
     if (ty1->kind == BASIC) return ty1->u.basic == ty2->u.basic;
+    if (ty1->kind == ARRAY) return array_match(ty1, ty2);
     if (ty1->kind == STRUCTURE) return field_match(ty1->u.structure, ty2->u.structure);
     if (ty1->kind == FUNCTION) return field_match(ty1->u.structure, ty2->u.structure);
     return false;
@@ -60,7 +63,7 @@ Type get_field(Type type, char *id) {
     FieldList iter = type->u.structure;
     while (iter) {
         if (streq(id, iter->name)) return iter->type;
-
+        iter = iter->tail;
     }
     return NULL;
 }
@@ -69,7 +72,7 @@ void Program(Node *cur) {
     INT_TY_.kind = FLOAT_TY_.kind = BASIC;
     INT_TY_.u.basic = INT_TY_NODE;
     FLOAT_TY_.u.basic = FLOAT_TY_NODE;
-    INT_TY = &FLOAT_TY_;
+    INT_TY = &INT_TY_;
     FLOAT_TY = &FLOAT_TY_;
     table_enter();
     ExtDefList(cur->son);
@@ -88,9 +91,10 @@ void ExtDefList(Node *cur) {
 void ExtDef(Node *cur) {
     if (cur == NULL) return;
     if (cur->type == ExtDef_NODE) {
-        Node *specifier = cur->son;
-        Type type = Specifier(specifier);
-        Node *node = specifier->succ;
+        Node *son = cur->son;
+        Type type = Specifier(son);
+        if (!type) return NULL;
+        Node *node = son->succ;
         if (node->type == SEMI_NODE) {
             return;
         }
@@ -98,9 +102,25 @@ void ExtDef(Node *cur) {
             ExtDecList(node, type);
         }
         else if (node->type == FunDec_NODE) {
-            type = FunDec(node, type);
+            table_enter();
+            Node *funDec = node;
+            type = FunDec(funDec, type);
+            retype = return_type(type);
             node = node->succ;
-            CompSt(node);
+            if (node->type == CompSt_NODE) {
+                CompSt(node);
+                retype = NULL;
+                table_leave();
+                char *name = type->u.structure->name;
+                function_insert(name, type, true);
+            }
+            else if (node->type == SEMI_NODE) {
+                retype = NULL;
+                table_leave();
+                char *name = type->u.structure->name;
+                function_insert(name, type, false);
+            }
+            else assert(0);
         }
     }
 }
@@ -135,28 +155,42 @@ Type Specifier(Node *cur) {
     }
 }
 
+static inline void printfield(FieldList f) {
+    if (!f) { printf("\n"); return; }
+    printf("%s %u ", f->name, f->type->kind); printfield(f->tail);
+}
+
 Type StructSpecifier(Node *cur) {
     if (cur == NULL) return NULL;
-    table_enter();
-    Node *tag = cur->son;
-    tag = tag->succ;
-    if (tag->type == OptTag_NODE) {
-        char *name = OptTag(tag);
-        Node *defList = tag->succ;
-        defList = defList->succ;
-        FieldList son = DefList(defList);
+    Node *son = cur->son;
+    son = son->succ;
+    if (son->type == OptTag_NODE || son->type == Null_NODE) {
+        table_enter();
+        in_struct++;
+        char *name = OptTag(son);
+        son = son->succ; son = son->succ;
+        FieldList defList = DefList(son);
+        Type strty = (Type)malloc(sizeof(struct Type_));
+        strty->kind = STRUCTURE;
+        strty->u.structure = defList;
+        in_struct--;
+        table_leave();
         if (name) {
-
+            if (table_insert(name, strty)) {
+                serror(16, cur->lineno, "");
+            }
         }
+        return strty;
     }
-    else if (tag->type == Tag_NODE) {
-        char *name = Tag(tag);
-        Type struct_type = table_lookup(name);
-        if (struct_type) {
-            return struct_type;
+    else if (son->type == Tag_NODE) {
+        char *name = Tag(son);
+        Type strty = table_lookup(name);
+        if (strty) {
+            return strty;
         }
         else {
             serror(17, cur->lineno, "Undefined structure");
+            return NULL;
         }
     }
     return NULL;
@@ -174,7 +208,7 @@ char *OptTag(Node *cur) {
 
 char *Tag(Node *cur) {
     if (cur == NULL) return NULL;
-    if (cur->type == OptTag_NODE) {
+    if (cur->type == Tag_NODE) {
         Node *id = cur->son;
         if (id->type == ID_NODE) return id->val.id;
     }
@@ -190,8 +224,8 @@ FieldList VarDec(Node *cur, Type type) {
         varDec->name = son->val.id;
         varDec->type = type;
         varDec->tail = NULL;
-        if (tabel_insert(varDec->name, type)) {
-            serror(3, son->lineno, "Redefinition of Variable");
+        if (table_insert(varDec->name, type)) {
+            serror(in_struct ? 15 : 3, son->lineno, "Redefinition of Variable");
         }
         return varDec;
     }
@@ -203,11 +237,11 @@ FieldList VarDec(Node *cur, Type type) {
         arr_type->kind = ARRAY;
         arr_type->u.array.elem = type;
         arr_type->u.array.size = size;
-        return VarDec(varDec, type); 
+        return VarDec(varDec, arr_type); 
     }
 }
 
-FieldList FunDec(Node *cur, Type type) {
+Type FunDec(Node *cur, Type type) {
     if (cur == NULL) return NULL;
     if (cur->type == FunDec_NODE) {
         Node *son = cur->son;
@@ -218,9 +252,25 @@ FieldList FunDec(Node *cur, Type type) {
         retfield->type = type;
         FieldList varlist = NULL;
         if (son->type == VarList_NODE) {
-            FieldList varlist = VarList(son);
+            varlist = VarList(son);
         }
         retfield->tail = varlist;
+        Type functy = (Type)malloc(sizeof(struct Type_));
+        functy->kind = FUNCTION;
+        functy->u.structure = retfield;
+        if (is_fun_dec) { // declaration
+            // deadcode
+            if (function_insert(id, functy, false)) {
+                serror(19, son->lineno, "Declaration error");
+            }
+            // deadcode
+        }
+        else { // define 
+            if (function_insert(id, functy, true)) {
+                serror(4, son->lineno, "Redefined function");
+            }
+        }
+        return functy;
     }
     return NULL;
 }
@@ -231,7 +281,10 @@ FieldList VarList(Node *cur) {
         Node *son = cur->son;
         FieldList param = ParamDec(son);
         son = son->succ;
-        param->tail = VarList(son);
+        if (son) {
+            son = son->succ;
+            param->tail = VarList(son);
+        } 
         return param;
     }
     return NULL;
@@ -242,6 +295,7 @@ FieldList ParamDec(Node *cur) {
     if (cur->type == ParamDec_NODE) {
         Node *son = cur->son;
         Type spec = Specifier(son);
+        if (!spec) return NULL;
         son = son->succ;
         return VarDec(son, spec);
     }
@@ -276,7 +330,7 @@ void Stmt(Node *cur) {
         assert(son);
         switch (son->type) {
         case Exp_NODE: Exp(son); break;
-        case CompSt_NODE: Stmt(son); break;         
+        case CompSt_NODE: CompSt(son); break;         
         case RETURN_NODE: {
             son = son->succ;
             Type type = Exp(son);
@@ -315,22 +369,31 @@ FieldList DefList(Node *cur) {
         Node *son = cur->son;
         FieldList result = Def(son);
         son = son->succ;
-        DefList(son);
+        if (!result) return DefList(son);
+        FieldList tail = result;
+        while (tail->tail) {
+            tail = tail->tail;
+        }
+        tail->tail = DefList(son);
+        return result;
     }
+    return NULL;
 }
 
 FieldList Def(Node *cur) {
-    if (cur == NULL) return;
+    if (cur == NULL) return NULL;
     if (cur->type == Def_NODE) {
         Node *son = cur->son;
         Type type = Specifier(son);
+        if (!type) return NULL;
         son = son->succ;
-        DecList(son, type); 
+        return DecList(son, type); 
     }
+    return NULL;
 }
 
 FieldList DecList(Node *cur, Type type) {
-    if (cur == NULL) return;
+    if (cur == NULL) return NULL;
     if (cur->type == DecList_NODE) {
         Node *son = cur->son;
         FieldList new_field = Dec(son, type);
@@ -341,17 +404,24 @@ FieldList DecList(Node *cur, Type type) {
         }
         return new_field;
     }
+    return NULL;
 }
 
 FieldList Dec(Node *cur, Type type) {
-    if (cur == NULL) return;
+    if (cur == NULL) return NULL;
     if (cur->type == Dec_NODE) {
         Node *son = cur->son;
         FieldList new_field = VarDec(son, type);
-        son = son->succ; son = son->succ;
-        Type exptype = Exp(son);
-        if (!type_match(exptype, new_field->type)) {
-            serror(5, cur->lineno, "Mismatch type");
+        son = son->succ;
+        if (son) {
+            son = son->succ;
+            Type exptype = Exp(son);
+            if (in_struct) {
+                serror(15, cur->lineno, "Cannot initialize field in struct");
+            }
+            if (!type_match(exptype, new_field->type)) {
+                serror(5, cur->lineno, "Mismatch type");
+            }
         }
         return new_field;
     }
@@ -359,78 +429,119 @@ FieldList Dec(Node *cur, Type type) {
 
 Type Exp(Node *cur) {
     if (cur == NULL) return NULL;
-    Node *lhs = cur->son;
-    if (lhs->type == LP_NODE) {
-        lhs = lhs->succ;
-        return Exp(lhs);
+    if (cur->type == Null_NODE) return NULL;
+    Node *son = cur->son;
+    if (son == NULL) return NULL;
+    if (son->type == LP_NODE) {
+        son = son->succ;
+        return Exp(son);
     }
-    else if (lhs->type == MINUS_NODE) {
-        lhs = lhs->succ;
-        Type result = Exp(lhs);
-        if (!is_basicty(result))
-            serror(7, lhs->lineno, "Invalid type in arithmetic expression.");
+    else if (son->type == MINUS_NODE) {
+        son = son->succ;
+        Type exp = Exp(son);
+        if (!is_basicty(exp)) {
+            serror(7, son->lineno, "Invalid type in arithmetic expression");
+        }
+        is_lexp = false;
+        return exp;
     }
-    else if (lhs->type == NOT_NODE) {
-        lhs = lhs->succ;
-        Type result = Exp(lhs);
-        if (!is_intty(result)) 
-            serror(7, lhs->lineno, "Invalid type in logic expression.");
-    }
-    else if (lhs->type == INT_NODE) {
+    else if (son->type == NOT_NODE) {
+        son = son->succ;
+        Type exp = Exp(son);
+        if (!is_intty(exp)) {
+            serror(7, son->lineno, "Invalid type in logic expression");
+        }
+        is_lexp = false;
         return INT_TY;
     }
-    else if (lhs->type == FLOAT_NODE) {
+    else if (son->type == INT_NODE) {
+        is_lexp = false;
+        return INT_TY;
+    }
+    else if (son->type == FLOAT_NODE) {
+        is_lexp = false;
         return FLOAT_TY;
     }
-    else if (lhs->type == Exp_NODE) {
-        Node *op = lhs->succ;
+    else if (son->type == Exp_NODE) {
+        Type lhs = Exp(son);
+        if (!lhs) return NULL;
+        son = son->succ;
+        Node *op = son;
         switch (op->type){
         case ASSIGNOP_NODE: {
-            
+            if (lhs == NULL) return NULL;
+            son = son->succ;
+            if (!is_lexp) {
+                serror(6, son->lineno, "The left-hand side of an assignment must be a variable");
+            }
+            Type rhs = Exp(son);
+            if (rhs == NULL) return NULL;
+            if (!type_match(lhs, rhs)){
+                serror(5, son->lineno, "Type mismatch for assign");
+            }
+            is_lexp = true;
+            return lhs;
         }
         break;
         case AND_NODE: case OR_NODE: 
-        case RELOP_NODE: case PLUS_NODE: case MINUS_NODE:
-        case STAR_NODE: case DIV_NODE: {
-            Type rhs = op->succ;
+        case RELOP_NODE: {
+            son = son->succ;
+            Type rhs = Exp(son);
+            if (!rhs) return NULL;
+            is_lexp = false;
             if (is_intty(lhs) && is_intty(rhs)) return INT_TY;
-            if (is_floatty(lhs) && is_floatty(rhs) 
-            && (op->type != AND_NODE || op->type != OR_NODE)) {
-                return op->type == RELOP_NODE ? INT_TY : FLOAT_TY;
-            }
-            serror(7, lhs->lineno, "Mismatched type in binary expression.");
+            if (is_floatty(lhs) && is_floatty(rhs)) return INT_TY;
+            serror(7, son->lineno, "Mismatched type in binary expression");
+            return INT_TY;
+        }
+        break;
+        case PLUS_NODE: case MINUS_NODE:
+        case STAR_NODE: case DIV_NODE: {
+            son = son->succ;
+            Type rhs = Exp(son);
+            if (!rhs) return NULL;
+            is_lexp = false;
+            if (is_intty(lhs) && is_intty(rhs)) return INT_TY;
+            if (is_floatty(lhs) && is_floatty(rhs)) return FLOAT_TY;
+            serror(7, son->lineno, "Mismatched type in binary expression");
+            return lhs;
         }
         break;
         case LB_NODE: {
-            Node *id = op->succ;
-            Type type = Exp(lhs);
-            if (type->kind == ARRAY) {
-                Node *exp = id->succ; exp = exp->succ;
-                Type index_type = Exp(exp);
-                if (is_intty(index_type)) {
-                    return type->u.array.elem;
+            son = son->succ;            
+            if (lhs->kind == ARRAY) {
+                Type index = Exp(son);
+                if (is_intty(index)) {
+                    is_lexp = true;
+                    return lhs->u.array.elem;
                 }
                 else {
-                    serror(12, exp->lineno, "");
+                    serror(12, son->lineno, "");
+                    return NULL;
                 }
             }
-            else serror(10, lhs->lineno, "");
+            else {
+                serror(10, op->lineno, "");
+                return NULL;
+            }
         }
         break;
         case DOT_NODE: {
             Node *id = op->succ;
-            Type type = Exp(lhs);
-            if (type->kind == STRUCTURE) {
-                Type field_type = get_field(type, id->val.id);
+            if (lhs && lhs->kind == STRUCTURE) {
+                Type field_type = get_field(lhs, id->val.id);
                 if (field_type) {
+                    is_lexp = true;
                     return field_type;
                 }
                 else {
-                    serror(14, lhs->lineno, "Non-existence field");
+                    serror(14, id->lineno, "Non-existence field");
+                    return NULL;
                 }
             }
             else {
-                serror(13, lhs->lineno, "Illegal use of \".\"");
+                serror(13, id->lineno, "Illegal use of \".\"");
+                return NULL;
             }
         }
         break;
@@ -438,37 +549,40 @@ Type Exp(Node *cur) {
         break;
         }
     }
-    else if (lhs->type == ID_NODE) {
-        Node *args = lhs->succ;
+    else if (son->type == ID_NODE) {
+        char *id = son->val.id;
+        Node *args = son->succ; 
         if (args == NULL) {
-            Type result = table_lookup(lhs->val.id);
+            Type result = table_lookup(id);
             if (result) {
+                is_lexp = true;
                 return result; 
             }
             else {
-                serror(1, lhs->lineno, "Undefined Variable");
+                serror(1, son->lineno, "Undefined Variable");
                 return NULL;
             }
         }
         else {
             args = args->succ;
-            Type func = function_lookup(lhs->val.id);
+            Type func = function_lookup(id);
             if (func) {
                 FieldList params = Args(args);
                 if (field_match(params, param_type(func))) {
+                    is_lexp = false;
                     return return_type(func);
                 }
                 else {
-                    serror(9, lhs->lineno, "");
+                    serror(9, args->lineno, "");
                     return NULL;
                 }
             }
             else {
-                func = table_lookup(lhs->val.id);
+                func = table_lookup(id);
                 if (func) {
-                    serror(11, lhs->lineno, "");
+                    serror(11, args->lineno, "");
                 }
-                serror(2, lhs->lineno, "Undefined Function");
+                serror(2, args->lineno, "Undefined Function");
                 return NULL;
             }
         }

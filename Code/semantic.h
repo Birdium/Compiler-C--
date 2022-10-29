@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include "ast.h"
+#include "table.h"
 
 #define streq(a, b) (strcmp((a), (b)) == 0)
 
@@ -24,16 +25,17 @@ struct FieldList_{
 	FieldList tail;
 };
 
+void serror(int type, int lineno, const char *str);
 
 bool array_match(Type ty1, Type ty2);
-bool field_match(FieldList , FieldList);
+bool field_match(FieldList iter1, FieldList iter2);
 bool type_match(Type ty1, Type ty2);
 
 Type return_type(Type functy);
 FieldList param_type(Type functy);
 Type get_field(Type type, char *id);
 
-void Program(Node *);
+void Program(Node *cur);
 void ExtDefList(Node *cur);
 void ExtDef(Node *cur);
 void ExtDecList(Node *cur, Type type);
@@ -45,7 +47,7 @@ char *OptTag(Node *cur);
 char *Tag(Node *cur);
 
 FieldList VarDec(Node *cur, Type type);
-FieldList FunDec(Node *cur, Type type);
+Type FunDec(Node *cur, Type type);
 FieldList VarList(Node *cur);
 FieldList ParamDec(Node *cur);
 

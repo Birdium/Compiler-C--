@@ -48,6 +48,7 @@ ExtDef:
         Specifier ExtDecList SEMI   {$$ = newNode(ExtDef_NODE, $1, $2, $3, NULL);}
     |   Specifier SEMI              {$$ = newNode(ExtDef_NODE, $1, $2, NULL);}
     |   Specifier FunDec CompSt     {$$ = newNode(ExtDef_NODE, $1, $2, $3, NULL);}
+    |   Specifier FunDec SEMI       {$$ = newNode(ExtDef_NODE, $1, $2, $3, NULL);}
     |   error SEMI                  {}
     |   Specifier error             {}
 ;
