@@ -53,7 +53,7 @@ unsigned int hash_pjw(char *name) {
     unsigned int val = 0, i;
     for (; *name; ++name) {
         val = (val << 2) + *name;
-        if (i = val & MASK) val = (val ^ (i >> 12)) & MASK;
+        if (i = val & MASK) val = (val ^ (i >> 12)) & ~MASK;
     }
     return val % HASH_SIZE;
 }
