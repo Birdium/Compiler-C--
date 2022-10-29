@@ -6,6 +6,49 @@ HashValue table[HASH_SIZE];
 Region cur;
 int depth;
 
+FuncNameNode funclist;
+
+bool check_funclist() {
+    if (!funclist) return true;
+    FuncNameNode iter = funclist;
+    while (iter) {
+        if (!iter->is_def) {
+            serror(18, iter->lineno, "Undefined Function");
+        }
+        iter = iter->next;
+    }
+    return true;
+}
+
+void funclist_insert(char *key, bool is_def, int lineno){
+    if (!funclist) {
+        funclist = (FuncNameNode)malloc(sizeof(struct FuncNameNode_));
+        funclist->name = key;
+        funclist->is_def = is_def;
+        funclist->lineno = lineno;
+        funclist->next = NULL;
+    }
+    else {
+        FuncNameNode iter = funclist;
+        while (iter) {
+            if (streq(iter->name, key)) {
+                if (is_def && !iter->is_def) iter->is_def = true;
+                break;
+            }
+            if (iter->next) iter = iter->next;
+            else {
+                iter->next = (FuncNameNode)malloc(sizeof(struct FuncNameNode_));
+                iter = iter->next;
+                iter->name = key;
+                iter->is_def = is_def;
+                iter->lineno = lineno;
+                iter->next = NULL;
+                break;
+            }
+        }
+    }
+}
+
 unsigned int hash_pjw(char *name) {
     unsigned int val = 0, i;
     for (; *name; ++name) {
@@ -13,7 +56,7 @@ unsigned int hash_pjw(char *name) {
         if (i = val & MASK) val = (val ^ (i >> 12)) & MASK;
     }
     return val % HASH_SIZE;
-};
+}
 
 int table_insert(char *key, Type value) {
     unsigned int hash = hash_pjw(key);
@@ -38,22 +81,17 @@ int table_insert(char *key, Type value) {
     return 0;
 }
 
-int function_insert(char *key, Type value, bool is_def) {
+int function_insert(char *key, Type value, bool is_def, int lineno) {
     unsigned int hash = hash_pjw(key);
     HashValue val = table[hash];
     while (val) {
-        if (val->type->kind == FUNCTION && val->name && streq(key, val->name)) break;
+        if (val->type->kind == FUNCTION && val->name && streq(key, val->name)) {
+            if (val->is_def && is_def) return 1;
+            if (!type_match(value, val->type)) return 1;
+        }
         val = val->next;
     }
-    if (val) {
-        if (!type_match(value, val->type)) return 1;
-        if (val->is_def) {
-            if (is_def) return 1;
-        }
-        else{
-            if (is_def) val->is_def = true;
-        }
-    }
+    funclist_insert(key, is_def, lineno);
     HashValue new_field = (HashValue)malloc(sizeof(struct HashValue_));
     new_field->type = value;
     new_field->name = key;

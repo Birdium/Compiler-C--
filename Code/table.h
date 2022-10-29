@@ -8,7 +8,7 @@
 
 typedef struct HashValue_* HashValue;
 typedef struct Region_* Region;
-
+typedef struct FuncNameNode_* FuncNameNode;
 struct HashValue_{
     char *name;
     Type type;
@@ -22,15 +22,23 @@ struct Region_{
     HashValue succ;
 };
 
+struct FuncNameNode_ {
+    char *name;
+    FuncNameNode next;
+    bool is_def;
+    int lineno;
+};
+
 
 unsigned int hash_pjw(char *name);
-
+bool check_funclist();
+void funclist_insert(char *key, bool is_def, int lineno);
 int table_insert(char *key, Type value);
 int table_remove(char *key);
 void table_enter();
 void table_leave();
 Type table_lookup(char *key);
-int function_insert(char *key, Type value, bool is_def);
+int function_insert(char *key, Type value, bool is_def, int lineno);
 Type function_lookup(char *key);
 
 #endif

@@ -76,6 +76,7 @@ void Program(Node *cur) {
     FLOAT_TY = &FLOAT_TY_;
     table_enter();
     ExtDefList(cur->son);
+    check_funclist();
     table_leave();
 }
 
@@ -104,21 +105,24 @@ void ExtDef(Node *cur) {
         else if (node->type == FunDec_NODE) {
             table_enter();
             Node *funDec = node;
-            type = FunDec(funDec, type);
-            retype = return_type(type);
             node = node->succ;
             if (node->type == CompSt_NODE) {
+                type = FunDec(funDec, type);
+                retype = return_type(type);
                 CompSt(node);
                 retype = NULL;
                 table_leave();
                 char *name = type->u.structure->name;
-                function_insert(name, type, true);
+                function_insert(name, type, true, funDec->lineno);
             }
             else if (node->type == SEMI_NODE) {
+                is_fun_dec = true;
+                type = FunDec(funDec, type);
+                is_fun_dec = false;
                 retype = NULL;
                 table_leave();
                 char *name = type->u.structure->name;
-                function_insert(name, type, false);
+                function_insert(name, type, false, funDec->lineno);
             }
             else assert(0);
         }
@@ -260,13 +264,13 @@ Type FunDec(Node *cur, Type type) {
         functy->u.structure = retfield;
         if (is_fun_dec) { // declaration
             // deadcode
-            if (function_insert(id, functy, false)) {
+            if (function_insert(id, functy, false, cur->lineno)) {
                 serror(19, son->lineno, "Declaration error");
             }
             // deadcode
         }
         else { // define 
-            if (function_insert(id, functy, true)) {
+            if (function_insert(id, functy, true, cur->lineno)) {
                 serror(4, son->lineno, "Redefined function");
             }
         }
