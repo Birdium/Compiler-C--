@@ -8,6 +8,17 @@ int depth;
 
 FuncNameNode funclist;
 
+HashValue newHashValue(char *name, Type type, int depth, bool is_def, HashValue next, HashValue succ) {
+    HashValue newNode = (HashValue)malloc(sizeof(struct HashValue_));
+    newNode->name = name;
+    newNode->type = type;
+    newNode->depth = depth;
+    newNode->is_def = is_def;
+    newNode->next = next;
+    newNode->succ = succ;
+    return newNode;
+}
+
 bool check_funclist() {
     if (!funclist) return true;
     FuncNameNode iter = funclist;
@@ -70,11 +81,7 @@ int table_insert(char *key, Type value) {
         if (val->type->kind == STRUCTURE && streq(key, val->name)) return 1;
         val = val->next;
     }
-    HashValue new_field = (HashValue)malloc(sizeof(struct HashValue_));
-    new_field->type = value;
-    new_field->name = key;
-    new_field->next = table[hash];
-    new_field->depth = depth;
+    HashValue new_field = newHashValue(key, value, depth, false, table[hash], NULL);
     table[hash] = new_field;
     new_field->succ = cur->succ;
     cur->succ = new_field;
@@ -92,12 +99,7 @@ int function_insert(char *key, Type value, bool is_def, int lineno) {
         val = val->next;
     }
     funclist_insert(key, is_def, lineno);
-    HashValue new_field = (HashValue)malloc(sizeof(struct HashValue_));
-    new_field->type = value;
-    new_field->name = key;
-    new_field->next = table[hash];
-    new_field->depth = depth;
-    new_field->is_def = is_def;
+    HashValue new_field = newHashValue(key, value, depth, is_def, table[hash], NULL);
     table[hash] = new_field;
     new_field->succ = cur->succ;
     cur->succ = new_field;

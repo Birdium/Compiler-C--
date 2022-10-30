@@ -41,4 +41,6 @@ Type table_lookup(char *key);
 int function_insert(char *key, Type value, bool is_def, int lineno);
 Type function_lookup(char *key);
 
+HashValue newHashValue(char *name, Type type, int depth, bool is_def, HashValue next, HashValue succ);
+
 #endif

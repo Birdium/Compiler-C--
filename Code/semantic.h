@@ -35,6 +35,11 @@ Type return_type(Type functy);
 FieldList param_type(Type functy);
 Type get_field(Type type, char *id);
 
+Type newArrayType(Type elem, int size);
+Type newStructType(FieldList fieldlist);
+Type newFuncType(FieldList fieldlist);
+FieldList newFieldList(char *name, Type type, FieldList tail);
+
 void Program(Node *cur);
 void ExtDefList(Node *cur);
 void ExtDef(Node *cur);

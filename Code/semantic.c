@@ -22,6 +22,36 @@ static inline bool is_basicty(Type type) {
 struct Type_ INT_TY_, FLOAT_TY_;
 Type INT_TY, FLOAT_TY;
 
+Type newArrayType(Type elem, int size) {
+    Type newNode = (Type)malloc(sizeof(struct Type_));
+    newNode->kind = ARRAY;
+    newNode->u.array.elem = elem;
+    newNode->u.array.size = size;
+    return newNode;
+}
+
+Type newStructType(FieldList fieldlist) {
+    Type newNode = (Type)malloc(sizeof(struct Type_));
+    newNode->kind = STRUCTURE;
+    newNode->u.structure = fieldlist;
+    return newNode;
+} 
+
+Type newFuncType(FieldList fieldlist) {
+    Type newNode = (Type)malloc(sizeof(struct Type_));
+    newNode->kind = FUNCTION;
+    newNode->u.structure = fieldlist;
+    return newNode;
+} 
+
+FieldList newFieldList(char *name, Type type, FieldList tail){
+    FieldList new_field = (FieldList)malloc(sizeof(struct FieldList_));
+    new_field->name = name;
+    new_field->type = type;
+    new_field->tail = tail;
+    return new_field;
+}
+
 void serror(int type, int lineno, const char *str){
     printf("Error type %d at Line %d: %s.\n", type, lineno, str);
 }
@@ -145,18 +175,18 @@ Type Specifier(Node *cur) {
     Node *son = cur->son;
     Type type;
     if (son->type == TYPE_NODE) {
-        type = (Type)malloc(sizeof(struct Type_));
-        type->kind = BASIC;
         if (streq(son->val.id, "int")) {
-            type->u.basic = INT_TY_NODE;
+            return INT_TY;
         }
         else if (streq(son->val.id, "float")) {
-            type->u.basic = FLOAT_TY_NODE;
+            return FLOAT_TY;
         }
+        return NULL;
     }
     else if (son->type == StructSpecifier_NODE) {
         return StructSpecifier(son);
     }
+    return NULL;
 }
 
 static inline void printfield(FieldList f) {
@@ -174,9 +204,7 @@ Type StructSpecifier(Node *cur) {
         char *name = OptTag(son);
         son = son->succ; son = son->succ;
         FieldList defList = DefList(son);
-        Type strty = (Type)malloc(sizeof(struct Type_));
-        strty->kind = STRUCTURE;
-        strty->u.structure = defList;
+        Type strty = newStructType(defList);
         in_struct--;
         table_leave();
         if (name) {
@@ -224,23 +252,18 @@ FieldList VarDec(Node *cur, Type type) {
     Node *son = cur->son;
     FieldList varDec;
     if (son->type == ID_NODE) {
-        varDec = malloc(sizeof(struct FieldList_));
-        varDec->name = son->val.id;
-        varDec->type = type;
-        varDec->tail = NULL;
+        char *id = son->val.id;
+        varDec = newFieldList(id, type, NULL);
         if (table_insert(varDec->name, type)) {
             serror(in_struct ? 15 : 3, son->lineno, "Redefinition of Variable");
         }
         return varDec;
     }
     else if (son->type == VarDec_NODE) {
-        Type arr_type = (Type)malloc(sizeof(struct Type_));
         Node *varDec = son;
         son = son->succ; son = son->succ;
         int size = son->val.ival;
-        arr_type->kind = ARRAY;
-        arr_type->u.array.elem = type;
-        arr_type->u.array.size = size;
+        Type arr_type = newArrayType(type, size);
         return VarDec(varDec, arr_type); 
     }
 }
@@ -251,23 +274,16 @@ Type FunDec(Node *cur, Type type) {
         Node *son = cur->son;
         char *id = son->val.id;
         son = son->succ; son = son->succ;
-        FieldList retfield = (FieldList)malloc(sizeof(struct FieldList_));
-        retfield->name = id;
-        retfield->type = type;
         FieldList varlist = NULL;
         if (son->type == VarList_NODE) {
             varlist = VarList(son);
         }
-        retfield->tail = varlist;
-        Type functy = (Type)malloc(sizeof(struct Type_));
-        functy->kind = FUNCTION;
-        functy->u.structure = retfield;
+        FieldList retfield = newFieldList(id, type, varlist); 
+        Type functy = newFuncType(retfield);
         if (is_fun_dec) { // declaration
-            // deadcode
             if (function_insert(id, functy, false, cur->lineno)) {
                 serror(19, son->lineno, "Declaration error");
             }
-            // deadcode
         }
         else { // define 
             if (function_insert(id, functy, true, cur->lineno)) {
@@ -596,20 +612,15 @@ Type Exp(Node *cur) {
 FieldList Args(Node *cur) {
     if (cur == NULL) return NULL;
     if (cur->type == Args_NODE) {
-        Node *exp = cur->son;
-        Type type = Exp(exp);
-        FieldList new_field = (FieldList)malloc(sizeof(struct FieldList_));
-        new_field->name = NULL;
-        new_field->type = type;
-        Node *args = exp->succ;
-        if (args) {
-            args = args->succ;
-            new_field->tail = Args(args);
+        Node *son = cur->son;
+        Type type = Exp(son);
+        FieldList args = NULL;
+        son = son->succ;
+        if (son) {
+            son = son->succ;
+            args = Args(son);
         }
-        else {
-            new_field->tail = NULL;
-        }
-        return new_field;
+        return newFieldList(NULL, type, args);
     }
     return NULL;
 }
