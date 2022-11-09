@@ -40,6 +40,7 @@ Type newStructType(FieldList fieldlist);
 Type newFuncType(FieldList fieldlist);
 FieldList newFieldList(char *name, Type type, FieldList tail);
 
+void init_Program();
 void Program(Node *cur);
 void ExtDefList(Node *cur);
 void ExtDef(Node *cur);

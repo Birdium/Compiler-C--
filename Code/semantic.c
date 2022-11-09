@@ -98,13 +98,24 @@ Type get_field(Type type, char *id) {
     return NULL;
 }
 
-void Program(Node *cur) {
+void init_Program() {
     INT_TY_.kind = FLOAT_TY_.kind = BASIC;
     INT_TY_.u.basic = INT_TY_NODE;
     FLOAT_TY_.u.basic = FLOAT_TY_NODE;
     INT_TY = &INT_TY_;
     FLOAT_TY = &FLOAT_TY_;
+    FieldList field_int_void = newFieldList("", INT_TY, NULL);  
+    FieldList field_int_int = newFieldList("", INT_TY, field_int_void);  
+
+    Type fun_read = newFuncType(field_int_void);
+    Type fun_write = newFuncType(field_int_int);
+    function_insert("read", fun_read, true, 0);
+    function_insert("write", fun_read, true, 0);
+}
+
+void Program(Node *cur) {
     table_enter();
+    init_Program();
     ExtDefList(cur->son);
     check_funclist();
     table_leave();
