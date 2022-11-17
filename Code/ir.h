@@ -36,29 +36,30 @@ struct Function_ {
     InterCode tail;
 };
 
+typedef struct FunctionList_* FunctionList;
+struct FunctionList_{
+    Function func;
+    FunctionList next;
+}; 
+
 typedef struct Module_* Module;
 struct Module_ {
-    Function func;
-    Module next;
+    FunctionList func_list;
+    FunctionList func_tail;
 };
 
-typedef struct ArgList_* ArgList;
-struct ArgList_ {
-    Operand arg;
-    ArgList next;
+typedef struct OpList_* OpList;
+struct OpList_ {
+    Operand op;
+    OpList tail;
 };
 
-typedef struct ParamList_* ParamList;
-struct ParamList_ {
-    Operand param;
-    ArgList next;
-};
-
+        insert_IR(func, )
 Operand newConstant(int x);
 Operand newTemporary();
 InterCode newIR();
-InterCode newLabelIR();
 InterCode newFunctionIR(char *name);
+InterCode newLabelIR();
 InterCode newAssignIR(Operand left, Operand right);
 InterCode newUnaryIR(Operand result, Operand op, int kind);
 InterCode newBinaryIR(Operand result, Operand op1, Operand op2, int kind);
@@ -68,9 +69,9 @@ InterCode newReturnIR(Operand var);
 InterCode newReadIR(Operand var);
 InterCode newWriteIR(Operand var);
 
-Function newFunction(char *name);
+Function newFunction(char *name, OpList params);
 void insert_IR(Function func, InterCode ir);
 
-ArgList newArgList(Operand arg, ArgList succ_list);
+OpList newArgList(Operand arg, OpList succ_list);
 
 #endif

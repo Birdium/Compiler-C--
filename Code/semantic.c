@@ -18,6 +18,8 @@ static inline bool is_basicty(Type type) {
     return type->kind == BASIC;
 }
 
+Module module;
+
 struct Type_ INT_TY_;
 Type INT_TY;
 
@@ -108,6 +110,7 @@ void init_Program() {
     Type fun_write = newFuncType(field_int_int);
     function_insert("read", fun_read, true, 0);
     function_insert("write", fun_read, true, 0);
+    module = newModule();
 }
 
 void Program(Node *cur) {
@@ -138,17 +141,12 @@ void ExtDef(Node *cur) {
             return;
         }
         else if (node->type == FunDec_NODE) {
-            table_enter();
             Node *funDec = node;
             node = node->succ;
             if (node->type == CompSt_NODE) {
-                type = FunDec(funDec, type);
-                retype = return_type(type);
+                func = FunDec(funDec, type);
                 CompSt(node);
-                retype = NULL;
-                table_leave();
                 char *name = type->u.structure->name;
-                function_insert(name, type, true, funDec->lineno);
             }
             else assert(0);
         }
@@ -181,14 +179,12 @@ Type StructSpecifier(Node *cur) {
     Node *son = cur->son;
     son = son->succ;
     if (son->type == OptTag_NODE || son->type == Null_NODE) {
-        table_enter();
         in_struct++;
         char *name = OptTag(son);
         son = son->succ; son = son->succ;
         FieldList defList = DefList(son);
         Type strty = newStructType(defList);
         in_struct--;
-        table_leave();
         if (name) {
             if (table_insert(name, strty)) {
                 serror(16, cur->lineno, "");
@@ -222,14 +218,14 @@ char *Tag(Node *cur) {
     return NULL;
 }
 
-FieldList VarDec(Node *cur, Type type) {
+OpList VarDec(Node *cur, Type type) {
     if (cur == NULL) return NULL;
     Node *son = cur->son;
-    FieldList varDec;
     if (son->type == ID_NODE) {
         char *id = son->val.id;
-        varDec = newFieldList(id, type, NULL);
-        return varDec;
+        OpList var = newVariable(id, type, NULL);
+        table_insert(id, var);
+        return var;
     }
     else if (son->type == VarDec_NODE) {
         Node *varDec = son;
@@ -240,24 +236,23 @@ FieldList VarDec(Node *cur, Type type) {
     }
 }
 
-Type FunDec(Node *cur, Type type) {
+Function FunDec(Node *cur, Type type) {
     if (cur == NULL) return NULL;
     if (cur->type == FunDec_NODE) {
         Node *son = cur->son;
         char *id = son->val.id;
         son = son->succ; son = son->succ;
-        FieldList varlist = NULL;
+        OpList params = NULL;
         if (son->type == VarList_NODE) {
-            varlist = VarList(son);
+            params = VarList(son);
         }
-        FieldList retfield = newFieldList(id, type, varlist); 
-        Type functy = newFuncType(retfield);
-        return functy;
+        func = newFunction(id, params);
+        return func;
     }
     return NULL;
 }
 
-FieldList VarList(Node *cur) {
+OpList VarList(Node *cur) {
     if (cur == NULL) return NULL;
     if (cur->type == VarList_NODE) {
         Node *son = cur->son;
@@ -272,7 +267,7 @@ FieldList VarList(Node *cur) {
     return NULL;
 }
 
-FieldList ParamDec(Node *cur) {
+OpList ParamDec(Node *cur) {
     if (cur == NULL) return NULL;
     if (cur->type == ParamDec_NODE) {
         Node *son = cur->son;
@@ -286,12 +281,10 @@ FieldList ParamDec(Node *cur) {
 void CompSt(Node *cur) {
     if (cur == NULL) return;
     if (cur->type == CompSt_NODE) {
-        table_enter();
         Node *son = cur->son; son = son->succ;
         DefList(son);
         son = son->succ;
         StmtList(son);
-        table_leave();  
     }
 }
 
@@ -301,6 +294,7 @@ void StmtList(Node *cur) {
         Node *son = cur->son;
         Stmt(son);
         son = son->succ;
+    FieldList varDec;
         StmtList(son);
     }
 }
@@ -560,30 +554,30 @@ Operand Exp(Node *cur) {
                 return result;
             }
             break;
-            case LB_NODE: {
-                son = son->succ;            
-                if (lhs->kind == ARRAY) {
-                    Type index = Exp(son);
-                    if (is_intty(index)) {
-                        is_lexp = true;
-                        return lhs->u.array.elem;
-                    }
-                }
-                return NULL;
-            }
-            break;
-            case DOT_NODE: {
-                Node *id = op->succ;
-                if (lhs && lhs->kind == STRUCTURE) {
-                    Type field_type = get_field(lhs, id->val.id);
-                    if (field_type) {
-                        is_lexp = true;
-                        return field_type;
-                    }
-                }
-                return NULL;
-            }
-            break;
+            // case LB_NODE: {
+            //     son = son->succ;            
+            //     if (lhs->kind == ARRAY) {
+            //         Type index = Exp(son);
+            //         if (is_intty(index)) {
+            //             is_lexp = true;
+            //             return lhs->u.array.elem;
+            //         }
+            //     }
+            //     return NULL;
+            // }
+            // break;
+            // case DOT_NODE: {
+            //     Node *id = op->succ;
+            //     if (lhs && lhs->kind == STRUCTURE) {
+            //         Type field_type = get_field(lhs, id->val.id);
+            //         if (field_type) {
+            //             is_lexp = true;
+            //             return field_type;
+            //         }
+            //     }
+            //     return NULL;
+            // }
+            // break;
             default:
             break;
         }

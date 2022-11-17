@@ -112,6 +112,14 @@ InterCode newWriteIR(Operand var) {
     return ir;
 }
 
+Module newModule() {
+    Module module = (Module)malloc(sizeof(struct Module_));
+    module->func_list = NULL;
+    module->func_tail = NULL;
+    return module;
+}
+
+
 Function newFunction(char *name) {
     Function func = (Function)malloc(sizeof(struct Function_));
     func->name = name;
@@ -125,11 +133,11 @@ void insert_IR(Function func, InterCode ir) {
     func->tail = ir;
 }
 
-ArgList newArgList(Operand arg, ArgList succ_list) {
-    ArgList arg_list = (ArgList)malloc(sizeof(struct ArgList_));
-    arg_list->arg = arg;
-    arg_list->next = succ_list;
-    return arg_list;
+OpList newOpList(Operand arg, OpList succ_list) {
+    OpList op_list = (OpList)malloc(sizeof(struct OpList_));
+    op_list->op = arg;
+    op_list->tail = succ_list;
+    return op_list;
 }
 
 void print_Operand(Operand op) {
