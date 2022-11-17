@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include "ast.h"
 #include "table.h"
+#include "ir.h"
 
 #define streq(a, b) (strcmp((a), (b)) == 0)
 
@@ -66,7 +67,7 @@ FieldList Def(Node *cur);
 FieldList DecList(Node *cur, Type type);
 FieldList Dec(Node *cur, Type type);
 
-Type Exp(Node *cur);
-FieldList Args(Node *cur);
+Operand Exp(Node *cur);
+ArgList Args(Node *cur);
 
 #endif
