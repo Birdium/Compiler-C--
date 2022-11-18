@@ -209,7 +209,7 @@ void print_IR(InterCode cur) {
         printf("LABEL label%d :", cur->u.num);
     }
     else if (cur->kind == FUNCT) {
-        printf("FUNCTION : %s", cur->u.name);
+        printf("FUNCTION %s : ", cur->u.name);
     }
     else if (cur->kind == ASSIGN) {
         print_Operand(cur->u.assign.left);
@@ -239,9 +239,9 @@ void print_IR(InterCode cur) {
     }
     else if (cur->kind == DIV) {
         print_Operand(cur->u.binop.result);
-        printf(" / ");
+        printf(" := ");
         print_Operand(cur->u.binop.op1);
-        printf(" + ");
+        printf(" / ");
         print_Operand(cur->u.binop.op2);
     }
     else if (cur->kind == JUMP) {
@@ -261,6 +261,10 @@ void print_IR(InterCode cur) {
         }
         print_Operand(cur->u.branch.op2);
         printf(" GOTO label%d", cur->u.branch.dest->u.num);
+    }
+    else if (cur->kind == RETURN) {
+        printf("RETURN ");
+        print_Operand(cur->u.var);
     }
     else if (cur->kind == ARG) {
         printf("ARG ");

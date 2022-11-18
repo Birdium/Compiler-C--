@@ -107,6 +107,11 @@ typedef struct {
     int lineno;
 }Node;
 
+static void print_node_type(Node *node) {
+    int ty = node->type;
+    printf("NODE TYPE: %s\n", NODE_TYPE_STRING[ty]);
+}
+
 bool is_terminator(NodeType type);
 
 Node *newNode(NodeType type, ...);

@@ -56,7 +56,6 @@ Operand translate_VarDec(Node *cur) {
 		Type type = table_lookup(id);
         OpList var = newVariable(); // type
 		table_update(id, var);
-        printf("%p\n", var);
         return var;
     }
     else if (son->type == VarDec_NODE) {
@@ -123,7 +122,6 @@ void translate_StmtList(Node *cur) {
         Node *son = cur->son;
         translate_Stmt(son);
         son = son->succ;
-    	FieldList varDec;
         translate_StmtList(son);
     }
 }
@@ -190,9 +188,9 @@ void translate_DefList(Node *cur) {
     if (cur == NULL) return;
     if (cur->type == DefList_NODE) {
         Node *son = cur->son;
-        Def(son);
+        translate_Def(son);
         son = son->succ;
-        DefList(son);
+        translate_DefList(son);
     }
 }
 
@@ -211,7 +209,7 @@ void translate_DecList(Node *cur) {
         Node *son = cur->son;
         translate_Dec(son);
         son = son->succ;
-        if (son) translate_DecList(son);
+        if (son) translate_DecList(son->succ);
     }
 }
 
@@ -284,7 +282,11 @@ void translate_Cond(Node *cur, InterCode label_true, InterCode label_false) {
 
 }
 Operand translate_LExp(Node *cur) {
-	return NULL;
+	assert(cur->type == Exp_NODE);
+	Node *son = cur->son;
+	assert(son->type == ID_NODE);
+	char *id = son->val.id;
+	return table_getop(id);
 }
 
 Operand translate_Exp(Node *cur) {
@@ -294,7 +296,7 @@ Operand translate_Exp(Node *cur) {
     if (son == NULL) return NULL;
     if (son->type == LP_NODE) {
         son = son->succ;
-        return Exp(son);
+        return translate_Exp(son);
     }
     else if (son->type == MINUS_NODE) {
         son = son->succ;
@@ -302,6 +304,7 @@ Operand translate_Exp(Node *cur) {
         Operand zero = newConstant(0);
         Operand result = newTemp();
         InterCode ir1 = newBinaryIR(result, zero, op, SUB);
+		insert_IR(func, ir1);
         return result;
     }
     else if (son->type == NOT_NODE) {
@@ -364,8 +367,8 @@ Operand translate_Exp(Node *cur) {
                 if (son->type == STAR_NODE) kind = MUL;
                 if (son->type == DIV_NODE) kind = DIV;
                 Node *rhs_node = son->succ;
-                Operand lhs = Exp(lhs_node);
-                Operand rhs = Exp(rhs_node);
+                Operand lhs = translate_Exp(lhs_node);
+                Operand rhs = translate_Exp(rhs_node);
                 Operand result = newTemp();
                 InterCode ir1 = newBinaryIR(result, lhs, rhs, kind);
                 insert_IR(func, ir1);
@@ -404,7 +407,7 @@ Operand translate_Exp(Node *cur) {
         char *id = son->val.id;
         son = son->succ;
         if (son == NULL) {
-            Operand var = table_lookup(id);
+            Operand var = table_getop(id);
             Operand result = newTemp();
             InterCode ir1 = newAssignIR(result, var);
             insert_IR(func, ir1);
@@ -435,7 +438,7 @@ Operand translate_Exp(Node *cur) {
             }
             else { // ID LP RP
                 InterCode ir1 = NULL;
-                if (callee->name == "read") {
+                if (streq(id, "read")) {
                     ir1 = newReadIR(result);
                 }
                 else {

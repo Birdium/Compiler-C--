@@ -69,6 +69,9 @@ InterCode newBinaryIR(Operand result, Operand op1, Operand op2, int kind);
 InterCode newJumpIR(InterCode dest);
 InterCode newBranchIR(InterCode dest, Operand op1, Operand op2, int relop);
 InterCode newReturnIR(Operand var);
+InterCode newArgIR(Operand var);
+InterCode newCallIR(Operand result, InterCode callee);
+InterCode newParamIR(Operand var);
 InterCode newReadIR(Operand var);
 InterCode newWriteIR(Operand var);
 
