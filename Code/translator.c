@@ -8,6 +8,8 @@
 Module module;
 Function func;
 
+bool is_ParamDec;
+
 void init_translator() {
     module = newModule();
 }
@@ -54,7 +56,16 @@ Operand translate_VarDec(Node *cur) {
     if (son->type == ID_NODE) {
         char *id = son->val.id;
 		Type type = table_lookup(id);
-        OpList var = newVariable(); // type
+        Operand var = newVariable(type);
+        if (type->kind != BASIC && is_ParamDec) {
+            var = makeAddress(var);
+        }
+        if (type->kind != BASIC && !is_ParamDec) {
+            int size = get_type_size(type);
+            Operand op = newConstant(size);
+            InterCode ir = newDecIR(var, size);
+            insert_IR(func, ir);
+        }
 		table_update(id, var);
         return var;
     }
@@ -101,7 +112,9 @@ OpList translate_ParamDec(Node *cur) {
     if (cur->type == ParamDec_NODE) {
         Node *son = cur->son;
         son = son->succ;
+        is_ParamDec = true;
         Operand op = translate_VarDec(son);
+        is_ParamDec = false;
         return newOpList(op, NULL);
     }
 }
@@ -241,26 +254,27 @@ int get_relop(char *name) {
 void translate_Cond(Node *cur, InterCode label_true, InterCode label_false) {
     Node *son = cur->son;
     if (son->type == NOT_NODE) {
+        son = son->succ;
         translate_Cond(son, label_false, label_true);
     }
     else if (cur->type == Exp_NODE) {
         Node *lhs_node = son;
         son = son->succ;
-        if (son->type == AND_NODE) {
+        if (son && son->type == AND_NODE) {
             Node *rhs_node = son->succ;
             InterCode label1 = newLabelIR();
             translate_Cond(lhs_node, label1, label_false);
             insert_IR(func, label1);
             translate_Cond(rhs_node, label_true, label_false);
         }
-        else if (son->type == OR_NODE) {
+        else if (son && son->type == OR_NODE) {
             Node *rhs_node = son->succ;
             InterCode label1 = newLabelIR();
             translate_Cond(lhs_node, label_true, label1);
             insert_IR(func, label1);
             translate_Cond(rhs_node, label_true, label_false);
         }
-        else if (son->type == RELOP_NODE) {
+        else if (son && son->type == RELOP_NODE) {
             int op = get_relop(son->val.id);
             Node *rhs_node = son->succ;
             Operand lhs = translate_Exp(lhs_node);
@@ -270,23 +284,69 @@ void translate_Cond(Node *cur, InterCode label_true, InterCode label_false) {
             insert_IR(func, ir1);
             insert_IR(func, ir2);
         }
+        else {
+            Operand t1 = translate_Exp(cur);
+            Operand zero = newConstant(0);
+            InterCode ir1 = newBranchIR(label_true, t1, zero, NEQ);
+            InterCode ir2 = newJumpIR(label_false);
+            insert_IR(func, ir1);
+            insert_IR(func, ir2);
+        }
     }
-    else {
-        Operand t1 = newTemp();
-        Operand zero = newConstant(0);
-        InterCode ir1 = newBranchIR(label_true, t1, zero, NEQ);
-        InterCode ir2 = newJumpIR(label_false);
-        insert_IR(func, ir1);
-        insert_IR(func, ir2);
-    }
-
 }
+
+// dangerous!!!
+Type arr_type;
+
 Operand translate_LExp(Node *cur) {
-	assert(cur->type == Exp_NODE);
 	Node *son = cur->son;
-	assert(son->type == ID_NODE);
-	char *id = son->val.id;
-	return table_getop(id);
+    if (son->type == ID_NODE) {
+        char *id = son->val.id;
+        son = son->succ;
+        if (!son) {
+            Type type = table_lookup(id);
+            Operand op = table_getop(id);
+            if (type->kind == ARRAY) arr_type = type->u.array.elem;
+            if (type->kind != BASIC && op->kind != ADDRESS) {
+                return makeAddress(op); // for vars like DEC v1
+            }
+            return op;
+        }
+    }
+    else if (son->type == Exp_NODE){
+        Node *lhs_node = son;
+        son = son->succ;
+        if (son->type == DOT_NODE) {
+            Operand base = translate_LExp(lhs_node); 
+            Operand addr = newTemp();
+            son = son->succ;
+            char *id = son->val.id;
+            Type field_type = table_lookup(id);
+            int offset = field_type->offset;
+            Operand op = newConstant(offset);
+            InterCode ir1 = newBinaryIR(addr, base, op, ADD);
+            insert_IR(func, ir1);
+            return addr;
+        }
+        else if (son->type == LB_NODE) {
+            Operand base = translate_LExp(lhs_node);
+            Operand addr = newTemp();
+            son = son->succ;
+            Operand index = translate_Exp(son);
+            int size = get_type_size(arr_type);
+            Operand op = newConstant(size);
+            Operand offset = newTemp();
+            InterCode ir1 = newBinaryIR(offset, index, op, MUL);
+            InterCode ir2 = newBinaryIR(addr, base, offset, ADD);
+            insert_IR(func, ir1);
+            insert_IR(func, ir2);
+            return addr;
+        }
+        else {
+            assert(0);
+        }
+    }
+    return NULL;
 }
 
 Operand translate_Exp(Node *cur) {
@@ -335,6 +395,8 @@ Operand translate_Exp(Node *cur) {
             case ASSIGNOP_NODE: { // lhs = rhs
                 Operand lhs = translate_LExp(lhs_node); 
                 son = son->succ;
+                if (lhs->kind != VARIABLE) 
+                    lhs = makeReference(lhs);
                 Operand rhs = translate_Exp(son);
                 Operand result = newTemp();
                 InterCode ir1 = newAssignIR(lhs, rhs);
@@ -375,30 +437,42 @@ Operand translate_Exp(Node *cur) {
                 return result;
             }
             break;
-            // case LB_NODE: {
-            //     son = son->succ;            
-            //     if (lhs->kind == ARRAY) {
-            //         Type index = Exp(son);
-            //         if (is_intty(index)) {
-            //             is_lexp = true;
-            //             return lhs->u.array.elem;
-            //         }
-            //     }
-            //     return NULL;
-            // }
-            // break;
-            // case DOT_NODE: {
-            //     Node *id = op->succ;
-            //     if (lhs && lhs->kind == STRUCTURE) {
-            //         Type field_type = get_field(lhs, id->val.id);
-            //         if (field_type) {
-            //             is_lexp = true;
-            //             return field_type;
-            //         }
-            //     }
-            //     return NULL;
-            // }
-            // break;
+            case LB_NODE: {
+                Operand base = translate_LExp(lhs_node);
+                Operand addr = newTemp();
+                Operand offset = newTemp();
+                Operand result = newTemp();
+                son = son->succ;
+                Operand index = translate_Exp(son);
+                int size = get_type_size(arr_type);
+                Operand op = newConstant(size);
+                InterCode ir1 = newBinaryIR(offset, index, op, MUL);
+                InterCode ir2 = newBinaryIR(addr, base, offset, ADD);
+                addr = makeReference(addr);
+                InterCode ir3 = newAssignIR(result, addr);
+                insert_IR(func, ir1);
+                insert_IR(func, ir2);
+                insert_IR(func, ir3);
+                return result;
+            }
+            break;
+            case DOT_NODE: {
+                Operand base = translate_LExp(lhs_node); 
+                Operand addr = newTemp();
+                Operand result = newTemp();
+                son = son->succ;
+                char *id = son->val.id;
+                Type field_type = table_lookup(id);
+                int offset = field_type->offset;
+                Operand op = newConstant(offset);
+                InterCode ir1 = newBinaryIR(addr, base, op, ADD);
+                addr = makeReference(addr);
+                InterCode ir2 = newAssignIR(result, addr);
+                insert_IR(func, ir1);
+                insert_IR(func, ir2);
+                return result;
+            }
+            break;
             default:
             break;
         }
@@ -427,11 +501,7 @@ Operand translate_Exp(Node *cur) {
                     insert_IR(func, ir2);
                 }
                 else {
-                    while (arg_list) {
-                        InterCode ir_arg = newArgIR(arg_list->op);
-                        insert_IR(func, ir_arg);
-                        arg_list = arg_list->tail;
-                    }
+                    insert_ArgList(func, arg_list);
                     InterCode ir1 = newCallIR(result, callee);
                     insert_IR(func, ir1);
                 }

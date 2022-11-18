@@ -6,7 +6,6 @@ static int var_no = 0;
 static int tmp_no = 0;
 static int lab_no = 0;
 
-
 Operand newOperand();
 
 Operand newConstant(int c) {
@@ -23,12 +22,46 @@ Operand newVariable() {
     return op;
 }
 
+Operand newAddress() {
+    Operand op = (Operand)malloc(sizeof(struct Operand_));
+    op->kind = ADDRESS;
+    op->u.value = var_no++; 
+    return op;
+}
+
 Operand newTemp() {
     Operand op = (Operand)malloc(sizeof(struct Operand_));
     op->kind = TEMPORARY;
     op->u.value = tmp_no++; 
     return op;
 }
+
+Operand makeAddress(Operand op) {
+    Operand new_op = (Operand)malloc(sizeof(struct Operand_));
+    if (op->kind == REFERENCE) {
+        new_op->kind = op->kind;
+        new_op->u.value = op->u.value;
+    } 
+    else {
+        new_op->kind = ADDRESS;
+        new_op->u.pt = op;
+    }
+    return new_op;
+}
+
+Operand makeReference(Operand op) {
+    Operand new_op = (Operand)malloc(sizeof(struct Operand_));
+    if (op->kind == ADDRESS) {
+        new_op->kind = op->kind;
+        new_op->u.value = op->u.value;
+    }
+    else {
+        new_op->kind = REFERENCE;
+        new_op->u.pt = op;
+    }
+    return new_op;
+}
+
 
 InterCode newLabelIR(){
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
@@ -54,6 +87,7 @@ InterCode newAssignIR(Operand left, Operand right) {
     ir->prev = ir->next = NULL;
     return ir;
 }
+
 InterCode newUnaryIR(Operand result, Operand op, int kind) {
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = kind;
@@ -100,6 +134,15 @@ InterCode newReturnIR(Operand var) {
     return ir;
 }
 
+InterCode newDecIR(Operand var, Operand size) {
+    InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
+    ir->kind = DEC;
+    ir->u.dec.var = var;
+    ir->u.dec.size = size;
+    ir->prev = ir->next = NULL;
+    return ir;
+} 
+
 InterCode newArgIR(Operand var) {
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = ARG;
@@ -108,7 +151,7 @@ InterCode newArgIR(Operand var) {
     return ir;
 }
 
-InterCode newCallIR(Operand result, InterCode callee) {
+InterCode newCallIR(Operand result, Function callee) {
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = CALL;
     ir->u.call.result = result;
@@ -169,6 +212,14 @@ FunctionList newFunctionList(Function func, FunctionList next) {
     return result;
 }
 
+void insert_ArgList(Function func, OpList arg_list) {
+    if (arg_list) {
+        insert_ArgList(func, arg_list->tail);
+        InterCode ir_arg = newArgIR(arg_list->op);
+        insert_IR(func, ir_arg);
+    }
+}
+
 void insert_IR(Function func, InterCode ir) {
     func->tail->next = ir;
     ir->prev = func->tail;
@@ -202,6 +253,14 @@ void print_Operand(Operand op) {
     if (op->kind == TEMPORARY) {
         printf("t%d", op->u.value);
     }
+    if (op->kind == ADDRESS) {
+        printf("&");
+        print_Operand(op->u.pt);
+    }
+    if (op->kind == REFERENCE) {
+        printf("*");
+        print_Operand(op->u.pt);
+    }
 }
 
 void print_IR(InterCode cur) {
@@ -210,6 +269,22 @@ void print_IR(InterCode cur) {
     }
     else if (cur->kind == FUNCT) {
         printf("FUNCTION %s : ", cur->u.name);
+    }
+    else if (cur->kind == ADDR) {
+        print_Operand(cur->u.unop.result);
+        printf(" := &");
+        print_Operand(cur->u.unop.op);
+    }
+    else if (cur->kind == LOAD) {
+        print_Operand(cur->u.unop.result);
+        printf(" := *");
+        print_Operand(cur->u.unop.op);
+    }
+    else if (cur->kind == STORE) {
+        printf("*");
+        print_Operand(cur->u.unop.result);
+        printf(" := ");
+        print_Operand(cur->u.unop.op);
     }
     else if (cur->kind == ASSIGN) {
         print_Operand(cur->u.assign.left);
@@ -265,6 +340,11 @@ void print_IR(InterCode cur) {
     else if (cur->kind == RETURN) {
         printf("RETURN ");
         print_Operand(cur->u.var);
+    }
+    else if (cur->kind == DEC) {
+        printf("DEC ");
+        print_Operand(cur->u.dec.var);
+        printf(" %d", cur->u.dec.size);
     }
     else if (cur->kind == ARG) {
         printf("ARG ");

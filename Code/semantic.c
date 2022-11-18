@@ -220,6 +220,15 @@ static inline void printfield(FieldList f) {
     printf("%s %u ", f->name, f->type->kind); printfield(f->tail);
 }
 
+void calcOffset(FieldList field) {
+    int offset = 0;
+    while (field) {
+        field->type->offset = offset;
+        offset += get_type_size(field->type);
+        field = field->tail;
+    }
+} 
+
 Type StructSpecifier(Node *cur) {
     if (cur == NULL) return NULL;
     Node *son = cur->son;
@@ -229,6 +238,7 @@ Type StructSpecifier(Node *cur) {
         char *name = OptTag(son);
         son = son->succ; son = son->succ;
         FieldList defList = DefList(son);
+        calcOffset(defList);
         Type strty = newStructType(defList);
         in_struct--;
         if (name) {

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include "ast.h"
 #include "table.h"
+#include "ir.h"
 
 #define streq(a, b) (strcmp((a), (b)) == 0)
 
@@ -17,6 +18,7 @@ struct Type_{
 		
 		FieldList structure;	
 	} u;
+	int offset;
 };
 
 struct FieldList_{
@@ -25,6 +27,7 @@ struct FieldList_{
 	FieldList tail;
 };
 
+void calcOffset(FieldList field);
 void serror(int type, int lineno, const char *str);
 
 bool array_match(Type ty1, Type ty2);
@@ -34,6 +37,7 @@ bool type_match(Type ty1, Type ty2);
 Type return_type(Type functy);
 FieldList param_type(Type functy);
 Type get_field(Type type, char *id);
+int get_type_size(Type type);
 
 Type newArrayType(Type elem, int size);
 Type newStructType(FieldList fieldlist);
@@ -67,5 +71,6 @@ FieldList Dec(Node *cur, Type type);
 
 Type Exp(Node *cur);
 FieldList Args(Node *cur);
+
 
 #endif

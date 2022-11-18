@@ -3,9 +3,10 @@
 
 typedef struct Operand_* Operand;
 struct Operand_{
-    enum {VARIABLE, CONSTANT, TEMPORARY, ADDRESS} kind;
+    enum {VARIABLE, CONSTANT, TEMPORARY, ADDRESS, REFERENCE} kind;
     union {
         int value;
+        Operand pt;
     } u;
 };
 
@@ -16,6 +17,7 @@ typedef struct OpList_* OpList;
 
 struct InterCode_ {
     enum {ASSIGN, ADD, SUB, MUL, DIV, 
+          ADDR, LOAD, STORE,
           LABEL, FUNCT, JUMP, BRANCH, 
           RETURN, DEC, ARG, CALL, PARAM,
           READ, WRITE} kind;
@@ -27,6 +29,7 @@ struct InterCode_ {
         char *name;
         InterCode dest;
         Operand var;
+        struct {Operand var, size;} dec;
         struct {InterCode dest; Operand op1, op2; enum {LSS, GRT, LEQ, GEQ, EQ, NEQ} relop;} branch;
         struct {Operand result; Function callee;} call;
     } u;
@@ -59,6 +62,8 @@ struct OpList_ {
 Operand newConstant(int x);
 Operand newVariable();
 Operand newTemp();
+Operand makeAddress(Operand op);
+Operand makeReference(Operand op);
 OpList newOpList(Operand arg, OpList succ_list);
 InterCode newIR();
 InterCode newFunctionIR(char *name);
@@ -69,8 +74,9 @@ InterCode newBinaryIR(Operand result, Operand op1, Operand op2, int kind);
 InterCode newJumpIR(InterCode dest);
 InterCode newBranchIR(InterCode dest, Operand op1, Operand op2, int relop);
 InterCode newReturnIR(Operand var);
+InterCode newDecIR(Operand var, Operand size);
 InterCode newArgIR(Operand var);
-InterCode newCallIR(Operand result, InterCode callee);
+InterCode newCallIR(Operand result, Function callee);
 InterCode newParamIR(Operand var);
 InterCode newReadIR(Operand var);
 InterCode newWriteIR(Operand var);
@@ -78,6 +84,7 @@ InterCode newWriteIR(Operand var);
 Module newModule();
 Function newFunction(char *name, OpList params);
 FunctionList newFunctionList(Function func, FunctionList next);
+void insert_ArgList(Function func, OpList arg_list);
 void insert_IR(Function func, InterCode ir);
 void insert_fun(Module module, Function func);
 
