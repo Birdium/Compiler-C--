@@ -36,6 +36,7 @@ void translate_ExtDef(Node *cur) {
             node = node->succ;
             if (node->type == CompSt_NODE) {
                 func = translate_FunDec(funDec);
+				insert_fun(module, func);
                 CompSt(node);
             }
             else assert(0);
