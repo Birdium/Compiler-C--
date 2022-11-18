@@ -99,6 +99,23 @@ Type get_field(Type type, char *id) {
     return NULL;
 }
 
+int get_type_size(Type type) {
+    if (type->kind == BASIC) return 4;
+    else if (type->kind == ARRAY) {
+        return type->u.array.size * get_type_size(type->u.array.elem);
+    }
+    else if (type->kind == STRUCTURE) {
+        int size = 0;
+        FieldList field = type->u.structure;
+        while (field) {
+            size += get_type_size(field->type);
+            field = field->tail;
+        }
+        return size;
+    }
+    return 0;
+}
+
 void init_Program() {
     INT_TY_.kind = FLOAT_TY_.kind = BASIC;
     INT_TY_.u.basic = INT_TY_NODE;
