@@ -88,6 +88,20 @@ int table_insert(char *key, Type value) {
     return 0;
 }
 
+int table_update(char *key, Operand value) {
+    unsigned int hash = hash_pjw(key);
+    HashValue val = table[hash];
+    while (val) {
+        if (val->type->kind != FUNCTION && streq(key, val->name)) break;
+        val = val->next;
+    }
+    if (val) {
+        val->op = value;
+        return 0;
+    }
+    return 1;
+}
+
 int function_insert(char *key, Type value, bool is_def, int lineno) {
     unsigned int hash = hash_pjw(key);
     HashValue val = table[hash];
@@ -136,7 +150,7 @@ void table_leave() {
     cur = pred;
 }
 
-Type table_lookup_type(char *key) {
+Type table_lookup(char *key) {
     unsigned int hash = hash_pjw(key);
     HashValue val = table[hash];
     // printf("name: %s, type: %p\n", val->name, val->type);
@@ -147,7 +161,7 @@ Type table_lookup_type(char *key) {
     return NULL;
 }
 
-Operand table_lookup_op(char *key) {
+Operand table_getop(char *key) {
     unsigned int hash = hash_pjw(key);
     HashValue val = table[hash];
     // printf("name: %s, type: %p\n", val->name, val->type);

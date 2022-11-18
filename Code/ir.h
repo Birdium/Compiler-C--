@@ -10,9 +10,13 @@ struct Operand_{
 };
 
 typedef struct InterCode_* InterCode;
+typedef struct Function_* Function;
+typedef struct OpList_* OpList;
+
+
 struct InterCode_ {
     enum {ASSIGN, ADD, SUB, MUL, DIV, 
-          LABEL, JUMP, BRANCH, 
+          LABEL, FUNCT, JUMP, BRANCH, 
           RETURN, DEC, ARG, CALL, PARAM,
           READ, WRITE} kind;
     union {
@@ -20,6 +24,7 @@ struct InterCode_ {
         struct {Operand result, op1, op2;} binop;
         struct {Operand result, op;} unop;
         int num;
+        char *name;
         InterCode dest;
         Operand var;
         struct {InterCode dest; Operand op1, op2; enum {LSS, GRT, LEQ, GEQ, EQ, NEQ} relop;} branch;
@@ -28,7 +33,6 @@ struct InterCode_ {
     InterCode prev, next;
 };
 
-typedef struct Function_* Function;
 struct Function_ {
     char *name;
     OpList params;
@@ -47,15 +51,13 @@ struct Module_ {
     FunctionList func_list;
     FunctionList func_tail;
 };
-
-typedef struct OpList_* OpList;
 struct OpList_ {
     Operand op;
     OpList tail;
 };
 
 Operand newConstant(int x);
-Operand newTemporary();
+Operand newTemp();
 InterCode newIR();
 InterCode newFunctionIR(char *name);
 InterCode newLabelIR();
@@ -71,6 +73,9 @@ InterCode newWriteIR(Operand var);
 Function newFunction(char *name, OpList params);
 void insert_IR(Function func, InterCode ir);
 
-OpList newArgList(Operand arg, OpList succ_list);
+void print_Module(Module);
+void print_Function(Function);
+void print_IR(InterCode);
+void print_Operand(Operand);
 
 #endif

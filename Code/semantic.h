@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include "ast.h"
 #include "table.h"
-#include "ir.h"
 
 #define streq(a, b) (strcmp((a), (b)) == 0)
 
@@ -41,7 +40,6 @@ Type newStructType(FieldList fieldlist);
 Type newFuncType(FieldList fieldlist);
 FieldList newFieldList(char *name, Type type, FieldList tail);
 
-void init_Program();
 void Program(Node *cur);
 void ExtDefList(Node *cur);
 void ExtDef(Node *cur);
@@ -67,7 +65,7 @@ FieldList Def(Node *cur);
 FieldList DecList(Node *cur, Type type);
 FieldList Dec(Node *cur, Type type);
 
-Operand Exp(Node *cur);
-ArgList Args(Node *cur);
+Type Exp(Node *cur);
+FieldList Args(Node *cur);
 
 #endif

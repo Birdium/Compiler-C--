@@ -5,6 +5,7 @@ static int var_no = 0;
 static int tmp_no = 0;
 static int lab_no = 0;
 
+
 Operand newOperand();
 
 Operand newConstant(int c) {
@@ -21,7 +22,7 @@ Operand newVariable() {
     return op;
 }
 
-Operand newTemporary() {
+Operand newTemp() {
     Operand op = (Operand)malloc(sizeof(struct Operand_));
     op->kind = TEMPORARY;
     op->u.value = tmp_no++; 
@@ -37,7 +38,7 @@ InterCode newLabelIR(){
 
 InterCode newFunctionIR(char *name){
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
-    ir->kind = FUNCTION;
+    ir->kind = FUNCT;
     ir->u.name = name;
     return ir;
 }
@@ -90,11 +91,25 @@ InterCode newReturnIR(Operand var) {
     return ir;
 }
 
+InterCode newArgIR(Operand var) {
+    InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
+    ir->kind = ARG;
+    ir->u.var = var;
+    return ir;
+}
+
 InterCode newCallIR(Operand result, InterCode callee) {
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = CALL;
     ir->u.call.result = result;
     ir->u.call.callee = callee;
+    return ir;
+}
+
+InterCode newParamIR(Operand var) {
+    InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
+    ir->kind = PARAM;
+    ir->u.var = var;
     return ir;
 }
 
@@ -120,15 +135,21 @@ Module newModule() {
 }
 
 
-Function newFunction(char *name) {
+Function newFunction(char *name, OpList params) {
     Function func = (Function)malloc(sizeof(struct Function_));
     func->name = name;
     func->entry = func->tail = newFunctionIR(name);
+    while (params) {
+        Operand param = params->op;
+        InterCode ir = newParamIR(param);
+        insert_IR(func, ir);
+        params = params->tail;
+    }
     return func;
 }
 
 void insert_IR(Function func, InterCode ir) {
-    func->tail->next = func->tail;
+    func->tail->next = ir;
     ir->prev = func->tail;
     func->tail = ir;
 }
@@ -150,7 +171,6 @@ void print_Operand(Operand op) {
     if (op->kind == TEMPORARY) {
         printf("t%d", op->u.value);
     }
-
 }
 
 void print_IR(InterCode cur) {
@@ -197,12 +217,12 @@ void print_IR(InterCode cur) {
         printf("IF ");
         print_Operand(cur->u.branch.op1);
         switch (cur->u.branch.relop) {
-            case LSS : print(" < ");  break;
-            case GRT : print(" > ");  break;
-            case LEQ : print(" <= "); break;
-            case GEQ : print(" >= "); break;
-            case EQ  : print(" == "); break;
-            case NEQ : print(" != "); break;
+            case LSS : printf(" < ");  break;
+            case GRT : printf(" > ");  break;
+            case LEQ : printf(" <= "); break;
+            case GEQ : printf(" >= "); break;
+            case EQ  : printf(" == "); break;
+            case NEQ : printf(" != "); break;
             default  : break;
         }
         print_Operand(cur->u.branch.op2);
@@ -229,4 +249,20 @@ void print_IR(InterCode cur) {
         print_Operand(cur->u.var);
     }
     printf("\n");
+}
+
+void print_Function(Function func) {
+    InterCode ir = func->entry;
+    while (ir) {
+        print_IR(ir);
+    }
+}
+
+void print_Module(Module module) {
+    FunctionList flist = module->func_list;
+    while (flist) {
+        print_Function(flist->func);
+        flist = flist->next;
+        printf("\n");
+    }
 }
