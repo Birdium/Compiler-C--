@@ -1,6 +1,6 @@
-#line 2 "./lex.yy.c"
+#line 1 "./lex.yy.c"
 
-#line 4 "./lex.yy.c"
+#line 3 "./lex.yy.c"
 
 #define  YY_INT_ALIGNED short int
 
@@ -562,9 +562,9 @@ char *yytext;
     //     tmp->firstArg.var=str;
     //     a->firstArg.exp=tmp;
     // }
-#line 566 "./lex.yy.c"
+#line 565 "./lex.yy.c"
 
-#line 568 "./lex.yy.c"
+#line 567 "./lex.yy.c"
 
 #define INITIAL 0
 #define comment 1
@@ -786,7 +786,7 @@ YY_DECL
 
 
 
-#line 790 "./lex.yy.c"
+#line 789 "./lex.yy.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1083,7 +1083,7 @@ YY_RULE_SETUP
 #line 94 "./lexical.l"
 ECHO;
 	YY_BREAK
-#line 1087 "./lex.yy.c"
+#line 1086 "./lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(comment):
 	yyterminate();

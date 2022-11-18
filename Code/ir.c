@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <assert.h>
 #include "ir.h"
 
 static int var_no = 0;
@@ -33,6 +34,7 @@ InterCode newLabelIR(){
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = LABEL;
     ir->u.num = lab_no++;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -40,6 +42,7 @@ InterCode newFunctionIR(char *name){
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = FUNCT;
     ir->u.name = name;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -48,6 +51,7 @@ InterCode newAssignIR(Operand left, Operand right) {
     ir->kind = ASSIGN;
     ir->u.assign.left = left;
     ir->u.assign.right = right;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 InterCode newUnaryIR(Operand result, Operand op, int kind) {
@@ -55,6 +59,7 @@ InterCode newUnaryIR(Operand result, Operand op, int kind) {
     ir->kind = kind;
     ir->u.unop.op = op;
     ir->u.unop.result = result;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -64,6 +69,7 @@ InterCode newBinaryIR(Operand result, Operand op1, Operand op2, int kind) {
     ir->u.binop.op1 = op1;
     ir->u.binop.op2 = op2;
     ir->u.binop.result = result;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -71,6 +77,7 @@ InterCode newJumpIR(InterCode dest) {
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = JUMP;
     ir->u.dest = dest;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -81,6 +88,7 @@ InterCode newBranchIR(InterCode dest, Operand op1, Operand op2, int relop) {
     ir->u.branch.op1 = op1;
     ir->u.branch.op2 = op2;
     ir->u.branch.relop = relop;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -88,6 +96,7 @@ InterCode newReturnIR(Operand var) {
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = RETURN;
     ir->u.var = var;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -95,6 +104,7 @@ InterCode newArgIR(Operand var) {
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = ARG;
     ir->u.var = var;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -103,6 +113,7 @@ InterCode newCallIR(Operand result, InterCode callee) {
     ir->kind = CALL;
     ir->u.call.result = result;
     ir->u.call.callee = callee;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -110,6 +121,7 @@ InterCode newParamIR(Operand var) {
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = PARAM;
     ir->u.var = var;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -117,6 +129,7 @@ InterCode newReadIR(Operand var) {
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = READ;
     ir->u.var = var;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -124,6 +137,7 @@ InterCode newWriteIR(Operand var) {
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = WRITE;
     ir->u.var = var;
+    ir->prev = ir->next = NULL;
     return ir;
 }
 
@@ -148,10 +162,27 @@ Function newFunction(char *name, OpList params) {
     return func;
 }
 
+FunctionList newFunctionList(Function func, FunctionList next) {
+    FunctionList result = (FunctionList)malloc(sizeof(struct FunctionList_));
+    result->func = func;
+    result->next = next;
+    return result;
+}
+
 void insert_IR(Function func, InterCode ir) {
     func->tail->next = ir;
     ir->prev = func->tail;
     func->tail = ir;
+}
+
+void insert_fun(Module module, Function func) {
+    if (module->func_list == NULL) {
+        module->func_list = module->func_tail = newFunctionList(func, NULL);
+    }
+    else {
+        module->func_tail->next = newFunctionList(func, NULL);
+        module->func_tail = module->func_tail->next;
+    }
 }
 
 OpList newOpList(Operand arg, OpList succ_list) {
@@ -176,6 +207,9 @@ void print_Operand(Operand op) {
 void print_IR(InterCode cur) {
     if (cur->kind == LABEL) {
         printf("LABEL label%d :", cur->u.num);
+    }
+    else if (cur->kind == FUNCT) {
+        printf("FUNCTION : %s", cur->u.name);
     }
     else if (cur->kind == ASSIGN) {
         print_Operand(cur->u.assign.left);
@@ -255,6 +289,7 @@ void print_Function(Function func) {
     InterCode ir = func->entry;
     while (ir) {
         print_IR(ir);
+        ir = ir->next;
     }
 }
 

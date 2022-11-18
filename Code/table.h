@@ -14,6 +14,7 @@ struct HashValue_{
     char *name;
     Type type;
     Operand op;
+    Function func;
     int depth;
     bool is_def;
     HashValue next, succ; // next 指向下个hash值, succ 指向同一层的下个值
@@ -43,7 +44,9 @@ void table_leave();
 Type table_lookup(char *key);
 Operand table_getop(char *key);
 int function_insert(char *key, Type value, bool is_def, int lineno);
+int function_update(char *key, Function func, bool is_def, int lineno);
 Type function_lookup(char *key);
+Function function_getfunc(char *key);
 
 HashValue newHashValue(char *name, Type type, int depth, bool is_def, HashValue next, HashValue succ);
 

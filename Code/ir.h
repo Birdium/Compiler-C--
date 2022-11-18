@@ -57,7 +57,9 @@ struct OpList_ {
 };
 
 Operand newConstant(int x);
+Operand newVariable();
 Operand newTemp();
+OpList newOpList(Operand arg, OpList succ_list);
 InterCode newIR();
 InterCode newFunctionIR(char *name);
 InterCode newLabelIR();
@@ -70,8 +72,11 @@ InterCode newReturnIR(Operand var);
 InterCode newReadIR(Operand var);
 InterCode newWriteIR(Operand var);
 
+Module newModule();
 Function newFunction(char *name, OpList params);
+FunctionList newFunctionList(Function func, FunctionList next);
 void insert_IR(Function func, InterCode ir);
+void insert_fun(Module module, Function func);
 
 void print_Module(Module);
 void print_Function(Function);

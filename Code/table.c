@@ -120,6 +120,22 @@ int function_insert(char *key, Type value, bool is_def, int lineno) {
     return 0;
 }
 
+int function_update(char *key, Function func, bool is_def, int lineno) {
+    unsigned int hash = hash_pjw(key);
+    HashValue val = table[hash];
+    while (val) {
+        if (val->type->kind == FUNCTION && val->name && streq(key, val->name)) {
+            break;
+        }
+        val = val->next;
+    }
+    if (val) {
+        val->func = func;
+        return 0;
+    }
+    return 1;
+}
+
 int table_remove(char *key) {
     unsigned int hash = hash_pjw(key);
     HashValue val = table[hash];
@@ -181,3 +197,14 @@ Type function_lookup(char *key) {
     }
     return NULL;
 }
+
+Function function_getfunc(char *key) {
+    unsigned int hash = hash_pjw(key);
+    HashValue val = table[hash];
+    while (val) {
+        if (val->type->kind == FUNCTION && streq(key, val->name)) return val->func;
+        val = val->next;
+    }
+    return NULL;
+}
+

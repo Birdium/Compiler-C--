@@ -8,8 +8,12 @@
 Module module;
 Function func;
 
-void translate_Program(Node *cur, Module module) {
-    // init_translator();
+void init_translator() {
+    module = newModule();
+}
+
+void translate_Program(Node *cur) {
+    init_translator();
     translate_ExtDefList(cur->son);
 	print_Module(module);
 }
@@ -37,22 +41,22 @@ void translate_ExtDef(Node *cur) {
             if (node->type == CompSt_NODE) {
                 func = translate_FunDec(funDec);
 				insert_fun(module, func);
-                CompSt(node);
+                translate_CompSt(node);
             }
             else assert(0);
         }
     }
 }
 
-// varDec in CompSt
 Operand translate_VarDec(Node *cur) {
     if (cur == NULL) return NULL;
     Node *son = cur->son;
     if (son->type == ID_NODE) {
         char *id = son->val.id;
 		Type type = table_lookup(id);
-        OpList var = newVariable(type);
+        OpList var = newVariable(); // type
 		table_update(id, var);
+        printf("%p\n", var);
         return var;
     }
     else if (son->type == VarDec_NODE) {
@@ -72,6 +76,7 @@ Function translate_FunDec(Node *cur) {
             params = translate_VarList(son);
         }
         func = newFunction(id, params);
+        function_update(id, func, true, 0);
         return func;
     }
     return NULL;
@@ -81,12 +86,12 @@ OpList translate_VarList(Node *cur) {
     if (cur == NULL) return NULL;
     if (cur->type == VarList_NODE) {
         Node *son = cur->son;
-        FieldList param = translate_ParamDec(son);
+        OpList param = translate_ParamDec(son);
         son = son->succ;
         if (son) {
             son = son->succ;
             param->tail = translate_VarList(son);
-        } 
+        }
         return param;
     }
     return NULL;
@@ -97,7 +102,8 @@ OpList translate_ParamDec(Node *cur) {
     if (cur->type == ParamDec_NODE) {
         Node *son = cur->son;
         son = son->succ;
-        return translate_VarDec(son);
+        Operand op = translate_VarDec(son);
+        return newOpList(op, NULL);
     }
 }
 
@@ -406,21 +412,11 @@ Operand translate_Exp(Node *cur) {
         }
         else {
             Node *args_node = son->succ;
-            Function callee = function_lookup(id);
+            Function callee = function_getfunc(id);
             Operand result = newTemp();
             if (args_node->type == Args_NODE) { // ID LP Args RP
-                InterCode ir1 = NULL;
-                if (callee->name == "read") {
-                    ir1 = newReadIR(result);
-                }
-                else {
-                    ir1 = newCallIR(result, callee); 
-                }
-                insert_IR(func, ir1);
-            }
-            else { // ID LP RP
-                OpList arg_list = Args(args_node);
-                if (callee->name == "write") {
+                OpList arg_list = translate_Args(args_node);
+                if (streq(id, "write")) {
                     Operand zero = newConstant(0);
                     InterCode ir1 = newWriteIR(arg_list->op);
                     InterCode ir2 = newAssignIR(result, zero);
@@ -436,6 +432,16 @@ Operand translate_Exp(Node *cur) {
                     InterCode ir1 = newCallIR(result, callee);
                     insert_IR(func, ir1);
                 }
+            }
+            else { // ID LP RP
+                InterCode ir1 = NULL;
+                if (callee->name == "read") {
+                    ir1 = newReadIR(result);
+                }
+                else {
+                    ir1 = newCallIR(result, callee); 
+                }
+                insert_IR(func, ir1);
             }
             return result;
         }

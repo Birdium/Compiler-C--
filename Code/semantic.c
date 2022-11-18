@@ -145,7 +145,6 @@ void ExtDef(Node *cur) {
             ExtDecList(node, type);
         }
         else if (node->type == FunDec_NODE) {
-            table_enter();
             Node *funDec = node;
             node = node->succ;
             if (node->type == CompSt_NODE) {
@@ -153,7 +152,6 @@ void ExtDef(Node *cur) {
                 retype = return_type(type);
                 CompSt(node);
                 retype = NULL;
-                table_leave();
                 char *name = type->u.structure->name;
                 function_insert(name, type, true, funDec->lineno);
             }
@@ -162,7 +160,6 @@ void ExtDef(Node *cur) {
                 type = FunDec(funDec, type);
                 is_fun_dec = false;
                 retype = NULL;
-                table_leave();
                 char *name = type->u.structure->name;
                 function_insert(name, type, false, funDec->lineno);
             }
@@ -211,14 +208,12 @@ Type StructSpecifier(Node *cur) {
     Node *son = cur->son;
     son = son->succ;
     if (son->type == OptTag_NODE || son->type == Null_NODE) {
-        table_enter();
         in_struct++;
         char *name = OptTag(son);
         son = son->succ; son = son->succ;
         FieldList defList = DefList(son);
         Type strty = newStructType(defList);
         in_struct--;
-        table_leave();
         if (name) {
             if (table_insert(name, strty)) {
                 serror(16, cur->lineno, "");
@@ -336,12 +331,10 @@ FieldList ParamDec(Node *cur) {
 void CompSt(Node *cur) {
     if (cur == NULL) return;
     if (cur->type == CompSt_NODE) {
-        table_enter();
         Node *son = cur->son; son = son->succ;
         DefList(son);
         son = son->succ;
         StmtList(son);
-        table_leave();  
     }
 }
 
