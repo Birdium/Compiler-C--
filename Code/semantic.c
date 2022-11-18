@@ -186,7 +186,7 @@ Type StructSpecifier(Node *cur) {
         Type strty = newStructType(defList);
         in_struct--;
         if (name) {
-            if (table_insert(name, strty)) {
+            if (table_insert(name, strty, NULL)) {
                 serror(16, cur->lineno, "");
             }
         }

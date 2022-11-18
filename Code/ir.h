@@ -1,5 +1,5 @@
 #ifndef IR_H
-#define IR_HH
+#define IR_H
 
 typedef struct Operand_* Operand;
 struct Operand_{
@@ -31,7 +31,7 @@ struct InterCode_ {
 typedef struct Function_* Function;
 struct Function_ {
     char *name;
-    ParamList params;
+    OpList params;
     InterCode entry;
     InterCode tail;
 };
@@ -54,7 +54,6 @@ struct OpList_ {
     OpList tail;
 };
 
-        insert_IR(func, )
 Operand newConstant(int x);
 Operand newTemporary();
 InterCode newIR();

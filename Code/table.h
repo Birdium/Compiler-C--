@@ -35,11 +35,12 @@ struct FuncNameNode_ {
 unsigned int hash_pjw(char *name);
 bool check_funclist();
 void funclist_insert(char *key, bool is_def, int lineno);
-int table_insert(char *key, Operand value);
+int table_insert(char *key, Type value, Operand op);
 int table_remove(char *key);
 void table_enter();
 void table_leave();
-Type table_lookup(char *key);
+Type table_lookup_type(char *key);
+Operand table_lookup_op(char *key);
 int function_insert(char *key, Type value, bool is_def, int lineno);
 Type function_lookup(char *key);
 

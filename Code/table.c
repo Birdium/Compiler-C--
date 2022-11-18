@@ -136,12 +136,23 @@ void table_leave() {
     cur = pred;
 }
 
-Type table_lookup(char *key) {
+Type table_lookup_type(char *key) {
     unsigned int hash = hash_pjw(key);
     HashValue val = table[hash];
     // printf("name: %s, type: %p\n", val->name, val->type);
     while (val) {
         if (val->type->kind != FUNCTION && streq(key, val->name)) return val->type;
+        val = val->next;
+    }
+    return NULL;
+}
+
+Operand table_lookup_op(char *key) {
+    unsigned int hash = hash_pjw(key);
+    HashValue val = table[hash];
+    // printf("name: %s, type: %p\n", val->name, val->type);
+    while (val) {
+        if (val->type->kind != FUNCTION && streq(key, val->name)) return val->op;
         val = val->next;
     }
     return NULL;
