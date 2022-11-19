@@ -39,8 +39,8 @@ Operand newTemp() {
 Operand makeAddress(Operand op) {
     Operand new_op = (Operand)malloc(sizeof(struct Operand_));
     if (op->kind == REFERENCE) {
-        new_op->kind = op->kind;
-        new_op->u.value = op->u.value;
+        new_op->kind = op->u.pt->kind;
+        new_op->u.value = op->u.pt->u.value;
     } 
     else {
         new_op->kind = ADDRESS;
@@ -52,8 +52,8 @@ Operand makeAddress(Operand op) {
 Operand makeReference(Operand op) {
     Operand new_op = (Operand)malloc(sizeof(struct Operand_));
     if (op->kind == ADDRESS) {
-        new_op->kind = op->kind;
-        new_op->u.value = op->u.value;
+        new_op->kind = op->u.pt->kind;
+        new_op->u.value = op->u.pt->u.value;
     }
     else {
         new_op->kind = REFERENCE;
@@ -198,6 +198,9 @@ Function newFunction(char *name, OpList params) {
     func->entry = func->tail = newFunctionIR(name);
     while (params) {
         Operand param = params->op;
+        if (param->kind != VARIABLE) {
+            param = param->u.pt;
+        }
         InterCode ir = newParamIR(param);
         insert_IR(func, ir);
         params = params->tail;
