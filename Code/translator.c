@@ -296,7 +296,7 @@ void translate_Cond(Node *cur, InterCode label_true, InterCode label_false) {
 }
 
 // dangerous!!!
-Type arr_type;
+Type left_type;
 
 Operand translate_LExp(Node *cur) {
 	Node *son = cur->son;
@@ -306,7 +306,8 @@ Operand translate_LExp(Node *cur) {
         if (!son) {
             Type type = table_lookup(id);
             Operand op = table_getop(id);
-            if (type->kind == ARRAY) arr_type = type->u.array.elem;
+            if (type->kind == ARRAY) left_type = type->u.array.elem;
+            if (type->kind == STRUCTURE) left_type = type;
             if (type->kind != BASIC && op->kind != ADDRESS) {
                 return makeAddress(op); // for vars like DEC v1
             }
@@ -321,8 +322,7 @@ Operand translate_LExp(Node *cur) {
             Operand addr = newTemp();
             son = son->succ;
             char *id = son->val.id;
-            Type field_type = table_lookup(id);
-            int offset = field_type->offset;
+            int offset = table_getoffset(id);
             Operand op = newConstant(offset);
             InterCode ir1 = newBinaryIR(addr, base, op, ADD);
             insert_IR(func, ir1);
@@ -333,7 +333,7 @@ Operand translate_LExp(Node *cur) {
             Operand addr = newTemp();
             son = son->succ;
             Operand index = translate_Exp(son);
-            int size = get_type_size(arr_type);
+            int size = get_type_size(left_type);
             Operand op = newConstant(size);
             Operand offset = newTemp();
             InterCode ir1 = newBinaryIR(offset, index, op, MUL);
@@ -444,7 +444,7 @@ Operand translate_Exp(Node *cur) {
                 Operand result = newTemp();
                 son = son->succ;
                 Operand index = translate_Exp(son);
-                int size = get_type_size(arr_type);
+                int size = get_type_size(left_type);
                 Operand op = newConstant(size);
                 InterCode ir1 = newBinaryIR(offset, index, op, MUL);
                 InterCode ir2 = newBinaryIR(addr, base, offset, ADD);
@@ -462,8 +462,7 @@ Operand translate_Exp(Node *cur) {
                 Operand result = newTemp();
                 son = son->succ;
                 char *id = son->val.id;
-                Type field_type = table_lookup(id);
-                int offset = field_type->offset;
+                int offset = table_getoffset(id);
                 Operand op = newConstant(offset);
                 InterCode ir1 = newBinaryIR(addr, base, op, ADD);
                 addr = makeReference(addr);

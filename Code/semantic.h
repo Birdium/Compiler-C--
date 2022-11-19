@@ -18,7 +18,6 @@ struct Type_{
 		
 		FieldList structure;	
 	} u;
-	int offset;
 };
 
 struct FieldList_{
@@ -27,7 +26,7 @@ struct FieldList_{
 	FieldList tail;
 };
 
-void calcOffset(FieldList field);
+int calcOffset(FieldList field, char *id);
 void serror(int type, int lineno, const char *str);
 
 bool array_match(Type ty1, Type ty2);

@@ -102,6 +102,20 @@ int table_update(char *key, Operand value) {
     return 1;
 }
 
+void table_setoffset(char *key, int offset) {
+    unsigned int hash = hash_pjw(key);
+    HashValue val = table[hash];
+    while (val) {
+        if (val->type->kind != FUNCTION && streq(key, val->name)) break;
+        val = val->next;
+    }
+    if (val) {
+        val->offset = offset;
+        return 0;
+    }
+    return 1;
+}
+
 int function_insert(char *key, Type value, bool is_def, int lineno) {
     unsigned int hash = hash_pjw(key);
     HashValue val = table[hash];
@@ -187,6 +201,18 @@ Operand table_getop(char *key) {
     }
     return NULL;
 }
+
+int table_getoffset(char *key) {
+    unsigned int hash = hash_pjw(key);
+    HashValue val = table[hash];
+    // printf("name: %s, type: %p\n", val->name, val->type);
+    while (val) {
+        if (val->type->kind != FUNCTION && streq(key, val->name)) return val->offset;
+        val = val->next;
+    }
+    return NULL;
+}
+
 
 Type function_lookup(char *key) {
     unsigned int hash = hash_pjw(key);
