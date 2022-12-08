@@ -39,12 +39,14 @@ void reg_alloc(Module module) {
         InterCode ir = func->entry;
         while (ir) {
             Operand lvalue = getLValue(ir);
-            if (lvalue && lvalue->sp_offset == 0 && ir->kind != PARAM) {
+            if (lvalue && lvalue->sp_offset == -1 && ir->kind != PARAM 
+                       && lvalue->kind != ADDRESS && lvalue->kind != REFERENCE) {
                 lvalue->sp_offset = offset;
-                offset += 4;
                 if (ir->kind == DEC) {
-                    int size = ir->u.dec.size;
-                    offset += size - 4;
+                    offset += ir->u.dec.size;
+                }
+                else {
+                    offset += 4;
                 }
             }
             ir = ir->next;
@@ -75,7 +77,10 @@ void gencode_Module(Module module) {
     }
 }
 
+Function cur_func;
+
 void gencode_Function(Function func) {
+    cur_func = func;
     if (strcmp(func->name, "main") == 0) {
         fprintf(ostream, "\taddi %s, %s, %d\n", regName[SP], regName[SP], -func->stack_size);
     }
@@ -84,21 +89,19 @@ void gencode_Function(Function func) {
         gencode_IR(ir);
         ir = ir->next;
     }
-    if (strcmp(func->name, "main") == 0) {
-        fprintf(ostream, "\taddi %s, %s, %d\n", regName[SP], regName[SP], func->stack_size);
-    }
 }
 
 int arg_cnt = 0;
 
+// only RValue
 void mem2reg_unary(RegNum reg, Operand op){
     if (op->kind == CONSTANT) {
         fprintf(ostream, "\tli %s, %d\n", regName[reg], op->u.value);
     }
-    else if (op->kind == ADDRESS) {
+    else if (op->kind == ADDRESS) { // &t1
         fprintf(ostream, "\taddi %s, %s, %d\n", regName[reg], regName[SP], op->u.pt->sp_offset);
     }
-    else if (op->kind == REFERENCE) {
+    else if (op->kind == REFERENCE) { // *t1
         fprintf(ostream, "\tlw %s, %d(%s)\n", regName[reg], op->u.pt->sp_offset, regName[SP]);
         fprintf(ostream, "\tlw %s, %d(%s)\n", regName[reg], 0, regName[reg]);
     }
@@ -195,6 +198,9 @@ void gencode_IR(InterCode ir){
     else if (ir->kind == RETURN) {
         Operand var = ir->u.var;
         mem2reg_unary(V0, var);
+        if (strcmp(cur_func->name, "main") == 0) {
+            fprintf(ostream, "\taddi %s, %s, %d\n", regName[SP], regName[SP], cur_func->stack_size);
+        }
         fprintf(ostream, "\tjr %s\n", regName[RA]);
     }
     else if (ir->kind == DEC) {

@@ -12,7 +12,7 @@ Operand newConstant(int c) {
     Operand op = (Operand)malloc(sizeof(struct Operand_));
     op->kind = CONSTANT;
     op->u.value = c;
-    op->sp_offset = 0;
+    op->sp_offset = -1;
     return op;
 }
 
@@ -20,7 +20,7 @@ Operand newVariable() {
     Operand op = (Operand)malloc(sizeof(struct Operand_));
     op->kind = VARIABLE;
     op->u.value = var_no++; 
-    op->sp_offset = 0;
+    op->sp_offset = -1;
     return op;
 }
 
@@ -28,7 +28,7 @@ Operand newAddress() {
     Operand op = (Operand)malloc(sizeof(struct Operand_));
     op->kind = ADDRESS;
     op->u.value = var_no++; 
-    op->sp_offset = 0;
+    op->sp_offset = -1;
     return op;
 }
 
@@ -36,33 +36,27 @@ Operand newTemp() {
     Operand op = (Operand)malloc(sizeof(struct Operand_));
     op->kind = TEMPORARY;
     op->u.value = tmp_no++; 
-    op->sp_offset = 0;
+    op->sp_offset = -1;
     return op;
 }
 
 Operand makeAddress(Operand op) {
-    Operand new_op = (Operand)malloc(sizeof(struct Operand_));
     if (op->kind == REFERENCE) {
-        new_op->kind = op->u.pt->kind;
-        new_op->u.value = op->u.pt->u.value;
+        return op->u.pt;
     } 
-    else {
-        new_op->kind = ADDRESS;
-        new_op->u.pt = op;
-    }
+    Operand new_op = (Operand)malloc(sizeof(struct Operand_));
+    new_op->kind = ADDRESS;
+    new_op->u.pt = op;
     return new_op;
 }
 
 Operand makeReference(Operand op) {
-    Operand new_op = (Operand)malloc(sizeof(struct Operand_));
     if (op->kind == ADDRESS) {
-        new_op->kind = op->u.pt->kind;
-        new_op->u.value = op->u.pt->u.value;
+        return op->u.pt;
     }
-    else {
-        new_op->kind = REFERENCE;
-        new_op->u.pt = op;
-    }
+    Operand new_op = (Operand)malloc(sizeof(struct Operand_));
+    new_op->kind = REFERENCE;
+    new_op->u.pt = op;
     return new_op;
 }
 
