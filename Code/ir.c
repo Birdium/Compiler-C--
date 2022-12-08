@@ -12,6 +12,7 @@ Operand newConstant(int c) {
     Operand op = (Operand)malloc(sizeof(struct Operand_));
     op->kind = CONSTANT;
     op->u.value = c;
+    op->sp_offset = 0;
     return op;
 }
 
@@ -19,6 +20,7 @@ Operand newVariable() {
     Operand op = (Operand)malloc(sizeof(struct Operand_));
     op->kind = VARIABLE;
     op->u.value = var_no++; 
+    op->sp_offset = 0;
     return op;
 }
 
@@ -26,6 +28,7 @@ Operand newAddress() {
     Operand op = (Operand)malloc(sizeof(struct Operand_));
     op->kind = ADDRESS;
     op->u.value = var_no++; 
+    op->sp_offset = 0;
     return op;
 }
 
@@ -33,6 +36,7 @@ Operand newTemp() {
     Operand op = (Operand)malloc(sizeof(struct Operand_));
     op->kind = TEMPORARY;
     op->u.value = tmp_no++; 
+    op->sp_offset = 0;
     return op;
 }
 
@@ -62,6 +66,25 @@ Operand makeReference(Operand op) {
     return new_op;
 }
 
+Operand getLValue(InterCode ir) {
+    if (ir->kind == ASSIGN) {
+        return ir->u.assign.left;
+    }
+    else if (ir->kind == ADD || ir->kind == SUB ||
+             ir->kind == MUL || ir->kind == DIV) {
+        return ir->u.binop.result;
+    }
+    else if (ir->kind == CALL) {
+        return ir->u.call.result;
+    }
+    else if (ir->kind == DEC) {
+        return ir->u.dec.var;
+    }
+    else if (ir->kind == READ) {
+        return ir->u.var;
+    }
+    return NULL;
+}
 
 InterCode newLabelIR(){
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
@@ -84,15 +107,6 @@ InterCode newAssignIR(Operand left, Operand right) {
     ir->kind = ASSIGN;
     ir->u.assign.left = left;
     ir->u.assign.right = right;
-    ir->prev = ir->next = NULL;
-    return ir;
-}
-
-InterCode newUnaryIR(Operand result, Operand op, int kind) {
-    InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
-    ir->kind = kind;
-    ir->u.unop.op = op;
-    ir->u.unop.result = result;
     ir->prev = ir->next = NULL;
     return ir;
 }
@@ -134,7 +148,7 @@ InterCode newReturnIR(Operand var) {
     return ir;
 }
 
-InterCode newDecIR(Operand var, Operand size) {
+InterCode newDecIR(Operand var, int size) {
     InterCode ir = (InterCode)malloc(sizeof(struct InterCode_));
     ir->kind = DEC;
     ir->u.dec.var = var;
@@ -196,6 +210,8 @@ Function newFunction(char *name, OpList params) {
     Function func = (Function)malloc(sizeof(struct Function_));
     func->name = name;
     func->entry = func->tail = newFunctionIR(name);
+    func->stack_size = 0;
+    func->params = params;
     while (params) {
         Operand param = params->op;
         if (param->kind != VARIABLE) {
@@ -272,22 +288,6 @@ void print_IR(InterCode cur) {
     }
     else if (cur->kind == FUNCT) {
         printf("FUNCTION %s : ", cur->u.name);
-    }
-    else if (cur->kind == ADDR) {
-        print_Operand(cur->u.unop.result);
-        printf(" := &");
-        print_Operand(cur->u.unop.op);
-    }
-    else if (cur->kind == LOAD) {
-        print_Operand(cur->u.unop.result);
-        printf(" := *");
-        print_Operand(cur->u.unop.op);
-    }
-    else if (cur->kind == STORE) {
-        printf("*");
-        print_Operand(cur->u.unop.result);
-        printf(" := ");
-        print_Operand(cur->u.unop.op);
     }
     else if (cur->kind == ASSIGN) {
         print_Operand(cur->u.assign.left);

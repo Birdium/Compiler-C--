@@ -21,7 +21,6 @@ int main(int argc, char** argv) {
     // assert(root);
     // if (!lex_error && !syn_error) print_ast(root, 0);
     Program(root);
-
     if (fout) fclose(fout);
     return 0;
 }

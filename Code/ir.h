@@ -8,6 +8,7 @@ struct Operand_{
         int value;
         Operand pt;
     } u;
+    int sp_offset;
 };
 
 typedef struct InterCode_* InterCode;
@@ -24,23 +25,25 @@ struct InterCode_ {
     union {
         struct {Operand right, left;} assign;
         struct {Operand result, op1, op2;} binop;
-        struct {Operand result, op;} unop;
         int num;
         char *name;
         InterCode dest;
         Operand var;
-        struct {Operand var, size;} dec;
+        struct {Operand var; int size;} dec;
         struct {InterCode dest; Operand op1, op2; enum {LSS, GRT, LEQ, GEQ, EQ, NEQ} relop;} branch;
         struct {Operand result; Function callee;} call;
     } u;
     InterCode prev, next;
 };
 
+Operand getLValue(InterCode ir);
+
 struct Function_ {
     char *name;
     OpList params;
     InterCode entry;
     InterCode tail;
+    int stack_size;
 };
 
 typedef struct FunctionList_* FunctionList;
@@ -69,12 +72,11 @@ InterCode newIR();
 InterCode newFunctionIR(char *name);
 InterCode newLabelIR();
 InterCode newAssignIR(Operand left, Operand right);
-InterCode newUnaryIR(Operand result, Operand op, int kind);
 InterCode newBinaryIR(Operand result, Operand op1, Operand op2, int kind);
 InterCode newJumpIR(InterCode dest);
 InterCode newBranchIR(InterCode dest, Operand op1, Operand op2, int relop);
 InterCode newReturnIR(Operand var);
-InterCode newDecIR(Operand var, Operand size);
+InterCode newDecIR(Operand var, int size);
 InterCode newArgIR(Operand var);
 InterCode newCallIR(Operand result, Function callee);
 InterCode newParamIR(Operand var);

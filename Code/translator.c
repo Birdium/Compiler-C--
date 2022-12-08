@@ -4,6 +4,7 @@
 #include "ast.h"
 #include "table.h"
 #include "ir.h"
+#include "codegen.h"
 
 Module module;
 Function func;
@@ -17,7 +18,8 @@ void init_translator() {
 void translate_Program(Node *cur) {
     init_translator();
     translate_ExtDefList(cur->son);
-	print_Module(module);
+	// print_Module(module);
+    gencode_Module(module);
 }
 
 void translate_ExtDefList(Node *cur) {
@@ -443,10 +445,12 @@ Operand translate_Exp(Node *cur) {
                 Operand addr = newTemp();
                 Operand offset = newTemp();
                 son = son->succ;
-                Operand index = translate_Exp(son);
                 left_type = left_type->u.array.elem;
+                Type tmp_type = left_type;
                 int size = get_type_size(left_type);
                 Operand op = newConstant(size);
+                Operand index = translate_Exp(son);
+                left_type = tmp_type;
                 InterCode ir1 = newBinaryIR(offset, index, op, MUL);
                 InterCode ir2 = newBinaryIR(addr, base, offset, ADD);
                 if (left_type->kind != BASIC) {
