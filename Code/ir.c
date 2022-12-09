@@ -68,11 +68,11 @@ Operand getLValue(InterCode ir) {
              ir->kind == MUL || ir->kind == DIV) {
         return ir->u.binop.result;
     }
-    else if (ir->kind == CALL) {
-        return ir->u.call.result;
-    }
     else if (ir->kind == DEC) {
         return ir->u.dec.var;
+    }
+    else if (ir->kind == CALL) {
+        return ir->u.call.result;
     }
     else if (ir->kind == READ) {
         return ir->u.var;

@@ -1,6 +1,7 @@
 #include <assert.h>
 #include "codegen.h"
 #include "string.h"
+#include "stdlib.h"
 
 FILE *ostream;
 
@@ -62,9 +63,13 @@ void reg_alloc(Module module) {
             params = params->tail; 
         }
         func->stack_size = offset;
+        assert(offset + 4 + param_offset <= 32767);
         flist = flist->next;
     }
 }
+
+int param_cnt = 0;
+int arg_cnt = 0;
 
 void gencode_Module(Module module) {
     gencode_init();
@@ -75,23 +80,19 @@ void gencode_Module(Module module) {
         flist = flist->next;
         fprintf(ostream, "\n");
     }
+    // exit(param_cnt);
 }
 
 Function cur_func;
 
 void gencode_Function(Function func) {
     cur_func = func;
-    if (strcmp(func->name, "main") == 0) {
-        fprintf(ostream, "\taddi %s, %s, %d\n", regName[SP], regName[SP], -func->stack_size);
-    }
     InterCode ir = func->entry;
     while (ir) {
         gencode_IR(ir);
         ir = ir->next;
     }
 }
-
-int arg_cnt = 0;
 
 // only RValue
 void mem2reg_unary(RegNum reg, Operand op){
@@ -121,6 +122,9 @@ void gencode_IR(InterCode ir){
     }
     else if (ir->kind == FUNCT) {
         fprintf(ostream, "%s:\n", ir->u.name);
+        if (strcmp(cur_func->name, "main") == 0) {
+            fprintf(ostream, "\taddi %s, %s, %d\n", regName[SP], regName[SP], -cur_func->stack_size);
+        }
     }
     else if (ir->kind == ASSIGN) {
         Operand left = ir->u.assign.left;
@@ -204,7 +208,7 @@ void gencode_IR(InterCode ir){
         fprintf(ostream, "\tjr %s\n", regName[RA]);
     }
     else if (ir->kind == DEC) {
-
+        param_cnt ++;
     }
     else if (ir->kind == ARG) {
         arg_cnt += 4;

@@ -26,7 +26,6 @@
           union {
               struct {Operand right, left;} assign;
               struct {Operand result, op1, op2;} binop;
-              struct {Operand result, op;} unop;
               int num;
               char *name;
               InterCode dest;
