@@ -1,145 +1,53 @@
-## 编译原理Lab3实验报告
+## 编译原理Lab4实验报告
 
-1. 完成情况：本次实验完成了所有选做要求，通过了OJ所有测试。
+1. 完成情况：本次实验完成了所有要求，通过了OJ所有测试。
 
-2. 编译方法：`make`生成可执行文件; `./parser <input>  out1.ir` 编译input测试用例，输出到`out1.ir`中。
+2. 编译方法：`make`生成可执行文件; `./parser <input>  out1.s` 编译input测试用例，将mips汇编代码输出到`out1.s`中。
 
-3. 在实验2语义分析的基础上，我选择了新开一个文件`translator.c`，来实现IR的语法制导翻译，以取得更加良好的模块性。
+3. 在实验3中间代码生成的基础上，我选择了新开一个文件`codegen.c`, 来实现IR到Mips指令的翻译
 
-4. 对IR的设计，我在`ir.h`中定义了如下结构体：
+4. 首先对调用约定进行规定：所有变量(v\*)，临时变量(t\*)都存在栈上，sp指针指向栈底第一个元素，调用函数时调用者将IR中参数依次压栈（IR中实参传递为倒序），并将返回地址RA也一起压栈，然后跳转到被调用者。被调用者根据自己栈帧的大小，计算出栈帧的大小（除去调用者给出的参数，返回地址）并扩栈。函数返回前，弹栈，并将返回值存在寄存器V0中。调用者恢复返回地址RA，将返回地址和参数一并弹栈，并将V0中值赋给对应变量。
 
-   1. ```c
-      struct Operand_{
-          enum {VARIABLE, CONSTANT, TEMPORARY, ADDRESS, REFERENCE} kind;
-          union {
-              int value;
-              Operand pt;
-          } u;
-      };
+5. 对寄存器分配，我选择了最朴素的寄存器分配方式：将变量全部溢出到内存中，这样指令模式的选择就非常的简单，非常的方便。
+
+   1. 首先对于每个函数，在寄存器分配的时候计算出其栈帧（活动记录）的大小——遍历每条指令，找它的左值，如果左值是未分配栈上空间的普通变量，临时变量，或者DEC变量，则为它分配栈上空间，其中普通变量占4Bytes，DEC x size的数组则占size大小。
+
+   2. 我在IR的Operand中新建了一个`sp_offset` 字段，在寄存器分配的时候为每个变量记录其分配到的的地址栈帧。
+
+6. 指令翻译部分，我是在我的IR架构上，对Module中每个函数，函数中逐条IR做线性的翻译。
+
+   1. 首先当然是照抄手册上的read, write等框架
+
+   2. 指令翻译的时候经常会需要取左值，因为我们所有变量都在内存中，我定义了一个`mem2reg`的函数，将给定变量对应的值读到寄存器中：
+      ```C
+      void mem2reg_unary(RegNum reg, Operand op){
+          if (op->kind == CONSTANT) {
+              fprintf(ostream, "\tli %s, %d\n", regName[reg], op->u.value);
+          }
+          else if (op->kind == ADDRESS) { // &t1
+              fprintf(ostream, "\taddi %s, %s, %d\n", regName[reg], regName[SP], op->u.pt->sp_offset);
+          }
+          else if (op->kind == REFERENCE) { // *t1
+              fprintf(ostream, "\tlw %s, %d(%s)\n", regName[reg], op->u.pt->sp_offset, regName[SP]);
+              fprintf(ostream, "\tlw %s, %d(%s)\n", regName[reg], 0, regName[reg]);
+          }
+          else {
+              fprintf(ostream, "\tlw %s, %d(%s)\n", regName[reg], op->sp_offset, regName[SP]);
+          }
+      }
       
-      struct InterCode_ {
-          enum {ASSIGN, ADD, SUB, MUL, DIV, 
-                ADDR, LOAD, STORE,
-                LABEL, FUNCT, JUMP, BRANCH, 
-                RETURN, DEC, ARG, CALL, PARAM,
-                READ, WRITE} kind;
-          union {
-              struct {Operand right, left;} assign;
-              struct {Operand result, op1, op2;} binop;
-              int num;
-              char *name;
-              InterCode dest;
-              Operand var;
-              struct {Operand var, size;} dec;
-              struct {InterCode dest; Operand op1, op2; enum {LSS, GRT, LEQ, GEQ, EQ, NEQ} relop;} branch;
-              struct {Operand result; Function callee;} call;
-          } u;
-          InterCode prev, next;
-      };
-      
-      struct Function_ {
-          char *name;
-          OpList params;
-          InterCode entry;
-          InterCode tail;
-      };
-      
-      struct FunctionList_{
-          Function func;
-          FunctionList next;
-      }; 
-      
-      struct Module_ {
-          FunctionList func_list;
-          FunctionList func_tail;
-      };
+      void mem2reg_binary(RegNum reg1, RegNum reg2, Operand op1, Operand op2){
+          mem2reg_unary(reg1, op1);
+          mem2reg_unary(reg2, op2);
+      }
       ```
 
-   2. 其中Module维护了一个Function的链表，Function则存有函数名，参数列表，第一条IR和最后一条IR（方便随时插入）
+      这样我们所有读取变量右值的操作都只需要调用这两个函数一次就能解决，在不同的翻译模式里，只需要考虑如何将寄存器中的值赋值给左值/在各种地方使用即可
 
-   3. 对于Operand，我设计了五种类型：
+   3. 对于 FUNCT 类型的 IR，我首先生成一个 `<funcname>:`, 然后生成一条扩栈语句。与此对等地，在函数的每一个出口，也就是 RETURN 类型的 IR，在使用 `jr $ra` 之前，我们都需要增加一条弹栈语句。
 
-      1. 三种基本类型：常量，变量，临时变量；对于这样的Operand, u.value中存放常量值/变量编号。
-      2. 两种扩展类型：取地址，解引用，u.pt中存放指向的Operand
-      3. 对一个基本类型，我实现了一个`makeAddress`函数来返回它的取地址类型；解引用同理。
+   4. 对于READ WRITE, 我并没有遵守我自己定义的调用约定，而是使用了手册上的实现，使用寄存器传参。
 
-   4. 对于这些类型，都实现了他们的构造函数和打印函数（想念C++的构造函数）
+7. 实现的时候，由于我选择的寄存器分配方式比较简陋，所以指令翻译部分基本上很快就实现完了，基本没遇到什么困难。困难之处主要在于设计栈帧方面。我一开始的设计是，对于每个函数，在调用的时候就将其栈帧分配完成。但是这样就带来了一个问题：main函数的栈帧没有被分配。事实上即使没有分配，对于一些本地的简单样例，spim上也是可以运行的。但是提交到OJ上就卡在了64分，我尝试了很多可能，比如说考虑函数名与指令名重名的问题（事实证明OJ没有测），$-1/2$ 和 $(-1)/2$ 在 IR 中与手册中给出的除法指令不匹配的问题（事实上OJ也没测），都没有找到问题。后来我通过spim上的单步执行发现了问题，为main函数单独判断了一下，在入口和出口处增加了扩栈弹栈指令。结果我把扩展指令生成在了 `main:` 的上面，因此卡住了，又过了好久才发现问题。最后就干脆全部改成被调用者扩栈了。
 
-5. 语法制导翻译部分，我选择了按照讲义上的翻译方法：模板进行实现，但是做了一些改动：翻译函数不返回IR，而是维护一个当前的Function，每次在Function->tail后插入一条指令。对于Exp的翻译，我选择让Exp返回Operand，这样就免去了传递place参数的麻烦。
-
-6. 实现数组/结构体的Load/Store是相对比较困难的一部分。
-   1. 对于结构体，需要获取偏离量。我修改了原先的语义分析，让符号表支持存储ident的偏移量，对于StructSpecifier，在得到它的类型后，更新structure中的所有变量的偏移量。
-
-   2. 数组需要计算偏移量，因此我实现了一个计算类型大小的函数，只需要读取数组元素类型，并计算出常量，将其与index相乘就得到了offset。
-
-   3. 无论是结构体还是数组都需要维护当前的类型，这部分只需要在读取到ID时查询符号表，并将其作为属性传回来即可。
-
-   4. 对于数组的计算，我将Exp的计算分成了`translate_LExp`和`translate_Exp`:
-
-      1. 我希望LExp能返回一个代表地址的Operand，而Exp能返回它的值。
-      2. 以Exp => EXP1 ASSIGNOP EXP2举例，我希望这里的EXP1返回地址，而EXP2返回值。假设EXP1=a, EXP2=b, 那么LExp(a) = a, Exp(b) = t1, 并添加IR: `t1 = b`
-      3. 在这种情况下，对Exp => EXP1 LB EXP2 RB 的计算：对EXP1采用LExp翻译，因为我希望得到这个数组的地址——对EXP2采用Exp翻译，因为EXP2是代表下标的右值。
-
-   5. 选做部分允许传递数组/结构体参数，因此我遇到了不少问题：
-
-      1. 对于参数列表来说，参数是RExp, 因此在目前的翻译模式下，传递数组参数，会多出不必要的对数组元素的取值。但是在传递一个参数前，是无法确定这是一个数组参数，还是一个值参数。我考虑了根据参数类型来判断，但这样很麻烦。因此我选择在`translate_Exp`中对当前翻译的类型进行判断，如果不是基本类型，就不进行取值。代码如下：
-
-      2. ```C
-         
-                     case LB_NODE: {
-                         Operand base = translate_LExp(lhs_node);
-                         Operand addr = newTemp();
-                         Operand offset = newTemp();
-                         son = son->succ;
-                         Operand index = translate_Exp(son);
-                         left_type = left_type->u.array.elem;
-                         int size = get_type_size(left_type);
-                         Operand op = newConstant(size);
-                         InterCode ir1 = newBinaryIR(offset, index, op, MUL);
-                         InterCode ir2 = newBinaryIR(addr, base, offset, ADD);
-                         if (left_type->kind != BASIC) {
-                             insert_IR(func, ir1);
-                             insert_IR(func, ir2);
-                             return addr;
-                         }
-                         else {
-                             Operand result = newTemp();
-                             addr = makeReference(addr);
-                             InterCode ir3 = newAssignIR(result, addr);
-                             insert_IR(func, ir1);
-                             insert_IR(func, ir2);
-                             insert_IR(func, ir3);
-                             return result;
-                         }
-                     }
-                     break;
-                     case DOT_NODE: {
-                         Operand base = translate_LExp(lhs_node); 
-                         Operand addr = newTemp();
-                         son = son->succ;
-                         char *id = son->val.id;
-                         int offset = table_getoffset(id);
-                         Operand op = newConstant(offset);
-                         InterCode ir1 = newBinaryIR(addr, base, op, ADD);
-                         left_type = get_field(left_type, id);
-                         if (left_type->kind != BASIC) {
-                             insert_IR(func, ir1);
-                             return addr;
-                         }
-                         else {
-                             Operand result = newTemp();
-                             addr = makeReference(addr);
-                             InterCode ir2 = newAssignIR(result, addr);
-                             insert_IR(func, ir1);
-                             insert_IR(func, ir2);
-                             return result;
-                         }
-                     }
-                     break;
-         ```
-
-7. 除此之外的内容都比较基本，在建立完框架的基础上能简单地完成。
-
-8. 总结：这次实验的过程中还是遇到了不小的挑战，对于IR的调试比较困难，发现了错误之后需要花不少时间去定位，找出错误。
-
-9. 其他：虚拟机中的语法`DEC x [size]`返回的x竟然不是一个地址，但作为参数传递的结构体/数组是！我的感觉是这样从语法统一性上看不是很优美，也对实现造成了一些细节上的困难。
+8. 感想：如果考虑到寄存器分配的话，目标代码生成还是很困难的，由于时间关系更高级的寄存器分配也没有时间实现了。那么使用自己的框架做的实验（前四个）就到此为止了，回头看来从零开始自己写一个能跑的编译器还是很有挑战性的，自己的代码能力，调试能力也得到了很大的提升。

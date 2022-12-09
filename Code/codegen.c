@@ -20,17 +20,6 @@ char* regName[] = {
 	"$ra"
 };
 
-typedef enum {
-    ZERO = 0, AT = 1, V0 = 2, V1 = 3,
-    A0 = 4, A1 = 5, A2 = 6, A3 = 7,
-    T0 = 8, T1 = 9, T2 = 10, T3 = 11,
-    T4 = 12, T5 = 13, T6 = 14, T7 = 15,
-    S0 = 16, S1 = 17, S2 = 18, S3 = 19,
-    S4 = 20, S5 = 21, S6 = 22, S7 = 23,
-    T8 = 24, T9 = 25, K0 = 26, K1 = 27, 
-    GP = 28, SP = 29, FP = 30, RA = 31
-}RegNum;
-
 
 void reg_alloc(Module module) {
     FunctionList flist = module->func_list;
@@ -68,7 +57,6 @@ void reg_alloc(Module module) {
     }
 }
 
-int param_cnt = 0;
 int arg_cnt = 0;
 
 void gencode_Module(Module module) {
@@ -80,7 +68,6 @@ void gencode_Module(Module module) {
         flist = flist->next;
         fprintf(ostream, "\n");
     }
-    // exit(param_cnt);
 }
 
 Function cur_func;
@@ -122,9 +109,7 @@ void gencode_IR(InterCode ir){
     }
     else if (ir->kind == FUNCT) {
         fprintf(ostream, "%s:\n", ir->u.name);
-        if (strcmp(cur_func->name, "main") == 0) {
-            fprintf(ostream, "\taddi %s, %s, %d\n", regName[SP], regName[SP], -cur_func->stack_size);
-        }
+        fprintf(ostream, "\taddi %s, %s, %d\n", regName[SP], regName[SP], -cur_func->stack_size);
     }
     else if (ir->kind == ASSIGN) {
         Operand left = ir->u.assign.left;
@@ -202,13 +187,10 @@ void gencode_IR(InterCode ir){
     else if (ir->kind == RETURN) {
         Operand var = ir->u.var;
         mem2reg_unary(V0, var);
-        if (strcmp(cur_func->name, "main") == 0) {
-            fprintf(ostream, "\taddi %s, %s, %d\n", regName[SP], regName[SP], cur_func->stack_size);
-        }
+        fprintf(ostream, "\taddi %s, %s, %d\n", regName[SP], regName[SP], cur_func->stack_size);
         fprintf(ostream, "\tjr %s\n", regName[RA]);
     }
     else if (ir->kind == DEC) {
-        param_cnt ++;
     }
     else if (ir->kind == ARG) {
         arg_cnt += 4;
@@ -220,16 +202,13 @@ void gencode_IR(InterCode ir){
         Operand result = ir->u.call.result;
         fprintf(ostream, "\taddi $sp, $sp, %d\n", -4-arg_cnt);
         fprintf(ostream, "\tsw $ra, 0($sp)\n");
-        fprintf(ostream, "\taddi $sp, $sp, %d\n", -ir->u.call.callee->stack_size);
         fprintf(ostream, "\tjal %s\n", ir->u.call.callee->name);
-        fprintf(ostream, "\taddi $sp, $sp, %d\n", ir->u.call.callee->stack_size);
         fprintf(ostream, "\tlw $ra, 0($sp)\n");
         fprintf(ostream, "\taddi $sp, $sp, %d\n", 4+arg_cnt);
         fprintf(ostream, "\tsw %s, %d(%s)\n", regName[V0], result->sp_offset, regName[SP]);
         arg_cnt = 0;
     }
     else if (ir->kind == PARAM) {
-        
     }
     else if (ir->kind == READ) {
         Operand var = ir->u.var;
